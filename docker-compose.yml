@@ -34,7 +34,11 @@ services:
     container_name: aiarchitect-agent
     environment:
       INTERNAL_SECRET: ${INTERNAL_SECRET:-dev-secret-change-in-prod}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
       QDRANT_URL: http://qdrant:6333
       LOG_LEVEL: INFO
     ports: ["8001:8001"]

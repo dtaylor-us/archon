@@ -1,0 +1,148 @@
+package com.aiarchitect.api.service;
+
+import com.aiarchitect.api.domain.model.*;
+import com.aiarchitect.api.dto.*;
+import com.aiarchitect.api.exception.AgentCommunicationException;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
+
+import java.util.List;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class ChatServiceTest {
+
+    @Mock private ConversationService conversationService;
+    @Mock private AgentBridgeService agentBridgeService;
+    @InjectMocks private ChatService chatService;
+
+    private ChatRequest createRequest(String message, UUID conversationId) {
+        ChatRequest req = new ChatRequest();
+        req.setMessage(message);
+        req.setConversationId(conversationId);
+        return req;
+    }
+
+    @Test
+    void streamChat_savesUserMessageBeforeStreamingAgent() {
+        UUID convId = UUID.randomUUID();
+        Conversation conv = Conversation.builder()
+                .id(convId).userId("user1").title("t").build();
+        when(conversationService.resolveConversation(any(), eq("user1"), any()))
+                .thenReturn(conv);
+        when(conversationService.getRecentMessages(convId, 20))
+                .thenReturn(List.of());
+        when(agentBridgeService.stream(any())).thenReturn(Flux.empty());
+
+        StepVerifier.create(chatService.streamChat(
+                createRequest("hello", convId), "user1"))
+                .verifyComplete();
+
+        verify(conversationService).saveMessage(
+                conv, MessageRole.USER, "hello", null);
+    }
+
+    @Test
+    void streamChat_savesAssistantMessageOnComplete() {
+        UUID convId = UUID.randomUUID();
+        Conversation conv = Conversation.builder()
+                .id(convId).userId("user1").title("t").build();
+        when(conversationService.resolveConversation(any(), eq("user1"), any()))
+                .thenReturn(conv);
+        when(conversationService.getRecentMessages(convId, 20))
+                .thenReturn(List.of());
+
+        AgentResponse chunk = new AgentResponse();
+        chunk.setType(AgentResponse.EventType.CHUNK);
+        chunk.setContent("architecture ");
+        AgentResponse chunk2 = new AgentResponse();
+        chunk2.setType(AgentResponse.EventType.CHUNK);
+        chunk2.setContent("overview");
+        when(agentBridgeService.stream(any()))
+                .thenReturn(Flux.just(chunk, chunk2));
+
+        StepVerifier.create(chatService.streamChat(
+                createRequest("design a system", convId), "user1"))
+                .expectNextCount(2)
+                .verifyComplete();
+
+        // Verify assistant message saved in doOnComplete
+        verify(conversationService, times(2)).saveMessage(
+                any(), any(), any(), any());
+        ArgumentCaptor<MessageRole> roleCaptor =
+                ArgumentCaptor.forClass(MessageRole.class);
+        ArgumentCaptor<String> contentCaptor =
+                ArgumentCaptor.forClass(String.class);
+        verify(conversationService, times(2)).saveMessage(
+                any(), roleCaptor.capture(), contentCaptor.capture(), any());
+        assertEquals(MessageRole.ASSISTANT, roleCaptor.getAllValues().get(1));
+        assertEquals("architecture overview", contentCaptor.getAllValues().get(1));
+    }
+
+    @Test
+    void streamChat_createsNewConversationWhenIdIsNull() {
+        Conversation newConv = Conversation.builder()
+                .id(UUID.randomUUID()).userId("user1").title("hello").build();
+        when(conversationService.resolveConversation(isNull(), eq("user1"), eq("hello")))
+                .thenReturn(newConv);
+        when(conversationService.getRecentMessages(any(), eq(20)))
+                .thenReturn(List.of());
+        when(agentBridgeService.stream(any())).thenReturn(Flux.empty());
+
+        StepVerifier.create(chatService.streamChat(
+                createRequest("hello", null), "user1"))
+                .verifyComplete();
+
+        verify(conversationService).resolveConversation(isNull(), eq("user1"), eq("hello"));
+    }
+
+    @Test
+    void streamChat_reusesExistingConversation() {
+        UUID existing = UUID.randomUUID();
+        Conversation conv = Conversation.builder()
+                .id(existing).userId("user1").title("t").build();
+        when(conversationService.resolveConversation(eq(existing), eq("user1"), any()))
+                .thenReturn(conv);
+        when(conversationService.getRecentMessages(existing, 20))
+                .thenReturn(List.of());
+        when(agentBridgeService.stream(any())).thenReturn(Flux.empty());
+
+        StepVerifier.create(chatService.streamChat(
+                createRequest("continue", existing), "user1"))
+                .verifyComplete();
+
+        ArgumentCaptor<AgentRequest> captor =
+                ArgumentCaptor.forClass(AgentRequest.class);
+        verify(agentBridgeService).stream(captor.capture());
+        assertEquals(existing.toString(), captor.getValue().getConversationId());
+    }
+
+    @Test
+    void streamChat_propagatesAgentError() {
+        UUID convId = UUID.randomUUID();
+        Conversation conv = Conversation.builder()
+                .id(convId).userId("user1").title("t").build();
+        when(conversationService.resolveConversation(any(), eq("user1"), any()))
+                .thenReturn(conv);
+        when(conversationService.getRecentMessages(convId, 20))
+                .thenReturn(List.of());
+        when(agentBridgeService.stream(any()))
+                .thenReturn(Flux.error(
+                        new AgentCommunicationException("agent down")));
+
+        StepVerifier.create(chatService.streamChat(
+                createRequest("hello", convId), "user1"))
+                .expectError(AgentCommunicationException.class)
+                .verify();
+    }
+}
