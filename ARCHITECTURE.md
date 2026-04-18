@@ -32,9 +32,14 @@ DEFINE service ai-architect-api {
   LANGUAGE: Java 21
   FRAMEWORK: Spring Boot 3.3.4
   RESPONSIBILITY: "API gateway — auth, session management, SSE streaming, agent bridge"
-  OWNS: [Conversation, Message, ConversationStatus, MessageRole]
+  OWNS: [Conversation, Message, ConversationStatus, MessageRole, ArchitectureOutput]
   DOES_NOT_OWN: [ArchitectureContext, pipeline logic, LLM calls, tool execution]
-  EXPOSES: [POST /api/v1/chat/stream, GET /api/v1/sessions/{id}/messages]
+  EXPOSES: [
+    POST /api/v1/chat/stream,
+    GET /api/v1/sessions/{id}/messages,
+    GET /api/v1/sessions/{id}/architecture,
+    GET /api/v1/sessions/{id}/diagram
+  ]
   CALLS: [ai-architect-agent via AgentHttpClient]
   ROOT_PACKAGE: com.aiarchitect.api
 }
@@ -190,7 +195,7 @@ DEFINE pipeline ArchitectAssistantPipeline {
     4  characteristic_inference  — CharacteristicReasoningEngine tool
     5  conflict_analysis         — CharacteristicConflictAnalyzer tool
     6  architecture_generation   — ArchitectureGenerator tool
-    7  trade_off_analysis        — TradeOffEngine tool
+    7  diagram_generation        — DiagramGenerator tool
     8  adl_generation            — ADLGeneratorV2 tool
     9  weakness_analysis         — WeaknessAnalyzer tool   [parallel with 10]
     10 fmea_analysis             — FMEAPlus tool           [parallel with 9]
@@ -229,6 +234,24 @@ DEFINE database Qdrant {
   OWNS: [architecture pattern embeddings, past design vectors]
   USED_BY: [ai-architect-agent only]
   PURPOSE: "Semantic memory — retrieve similar past architectures at inference time"
+  COLLECTION: architecture_patterns {
+    EMBEDDING_MODEL: text-embedding-3-small
+    DIMENSION: 1536
+    DISTANCE: cosine
+    POINT_PAYLOAD: [conversation_id, domain, system_type, architecture_style, characteristic_names, stored_at]
+  }
+}
+
+DEFINE component MemoryStore {
+  LANGUAGE: Python
+  MODULE: app.memory.store
+  RESPONSIBILITY: "Qdrant-backed vector memory for architecture pattern storage and retrieval"
+  METHODS: [
+    _ensure_collection()  — create Qdrant collection if not exists (called at startup),
+    store_design()        — embed requirements and upsert into Qdrant (fire-and-forget),
+    retrieve_similar()    — embed requirements and search Qdrant for similar past designs
+  ]
+  INVARIANT: All public methods MUST catch exceptions and log warnings — never raise to caller
 }
 
 ASSERT data-layer {
@@ -240,7 +263,8 @@ ASSERT data-layer {
 
   MUST store all structured agent outputs (ADL, trade-offs, weaknesses) as JSONB
     in messages.structured_output
-    — do not create separate tables for each output type in Phase 1-4
+    — architecture_outputs table is the sole exception (Phase 3+ for query-friendly access)
+    — do not create additional separate tables for each output type
 
   MUST use UUID primary keys on all tables
     — no integer or serial primary keys
@@ -379,7 +403,8 @@ When generating code for this project, Copilot MUST:
 4. Never mutate ArchitectureContext from the ReviewAgent.
 5. Never remove or rename existing AgentResponse.EventType enum values.
 6. Never log secrets, API keys, or user message content at INFO or above.
-7. Never create a new table for structured agent output — use messages.structured_output JSONB.
+7. Never create a new table for structured agent output beyond architecture_outputs
+   — use messages.structured_output JSONB for all other output types.
 8. Never skip the X-Internal-Secret validation in the agent endpoint.
 9. Never set open-in-view to true.
 10. Never commit a .env file containing real credentials.

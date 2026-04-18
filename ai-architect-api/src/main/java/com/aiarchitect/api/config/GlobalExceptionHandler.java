@@ -3,6 +3,7 @@ package com.aiarchitect.api.config;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -36,6 +37,17 @@ public class GlobalExceptionHandler {
                 HttpStatus.valueOf(ex.getStatusCode().value()),
                 ex.getReason() != null ? ex.getReason() : "No details");
         pd.setTitle(ex.getStatusCode().toString());
+        return pd;
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleMessageNotReadable(HttpMessageNotReadableException ex) {
+        log.warn("Malformed request body: {}", ex.getMessage());
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Malformed request body. Check JSON syntax and field values.");
+        pd.setTitle("Bad Request");
+        pd.setType(URI.create("urn:ai-architect:validation-error"));
         return pd;
     }
 

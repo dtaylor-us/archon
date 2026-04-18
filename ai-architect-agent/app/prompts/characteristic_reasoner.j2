@@ -1,0 +1,39 @@
+You are a principal architect performing architecture characteristic
+analysis. Your task is to determine which quality attributes matter
+for this specific system — not to apply a generic checklist.
+
+SYSTEM REQUIREMENTS:
+{{ raw_requirements }}
+
+DOMAIN: {{ parsed_entities.get('domain', 'unknown') }}
+SYSTEM TYPE: {{ parsed_entities.get('system_type', 'unknown') }}
+
+QUALITY SIGNALS FROM REQUIREMENTS:
+{{ parsed_entities.get('quality_signals', []) | tojson }}
+
+SCENARIOS:
+{{ scenarios | tojson(indent=2) }}
+
+Infer the architecture characteristics that are genuinely important
+for this system. Do not list every possible characteristic — only
+the ones that will materially influence architectural decisions.
+
+For each characteristic explain specifically WHY it matters for
+this system, not a generic definition.
+
+Return a JSON object with exactly this structure. No markdown, no preamble:
+{
+  "characteristics": [
+    {
+      "name": "string — characteristic name e.g. scalability",
+      "justification": "string — why this matters for THIS system specifically",
+      "measurable_target": "string — a concrete, testable definition e.g. p99 < 200ms under 5k RPS",
+      "current_requirement_coverage": "explicit/implicit/inferred",
+      "tensions_with": ["string — names of other characteristics this conflicts with"]
+    }
+  ],
+  "reasoning_summary": "string — 2-3 sentence explanation of the dominant characteristic trade-off landscape for this system"
+}
+
+Return between 4 and 8 characteristics. More than 8 means you are
+listing, not reasoning.

@@ -67,3 +67,33 @@ class TestLLMClientComplete:
             await self.client.complete("test prompt")
 
         assert any("input" in r.message.lower() or "token" in r.message.lower() for r in caplog.records)
+
+    async def test_complete_strips_markdown_fences_from_json(self):
+        """complete() strips ```json ... ``` fences when response_format='json'."""
+        mock_response = MagicMock()
+        mock_response.content = '```json\n{"result": "ok"}\n```'
+        mock_response.usage_metadata = {}
+        self.mock_chat.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await self.client.complete("test prompt", response_format="json")
+        assert result == '{"result": "ok"}'
+
+    async def test_complete_strips_plain_fences_from_json(self):
+        """complete() strips ``` ... ``` fences (without json tag) when response_format='json'."""
+        mock_response = MagicMock()
+        mock_response.content = '```\n{"data": 1}\n```'
+        mock_response.usage_metadata = {}
+        self.mock_chat.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await self.client.complete("test prompt", response_format="json")
+        assert result == '{"data": 1}'
+
+    async def test_complete_does_not_strip_fences_for_text_format(self):
+        """complete() leaves markdown fences intact when response_format='text'."""
+        mock_response = MagicMock()
+        mock_response.content = '```json\n{"data": 1}\n```'
+        mock_response.usage_metadata = {}
+        self.mock_chat.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await self.client.complete("test prompt", response_format="text")
+        assert result == '```json\n{"data": 1}\n```'

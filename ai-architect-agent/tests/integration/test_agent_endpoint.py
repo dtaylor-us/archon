@@ -27,10 +27,26 @@ def mock_registry():
     mock_scenario = AsyncMock()
     mock_scenario.run = AsyncMock(side_effect=lambda ctx: ctx)
 
+    mock_char_reasoner = AsyncMock()
+    mock_char_reasoner.run = AsyncMock(side_effect=lambda ctx: ctx)
+
+    mock_conflict = AsyncMock()
+    mock_conflict.run = AsyncMock(side_effect=lambda ctx: ctx)
+
+    mock_arch_gen = AsyncMock()
+    mock_arch_gen.run = AsyncMock(side_effect=lambda ctx: ctx)
+
+    mock_diagram_gen = AsyncMock()
+    mock_diagram_gen.run = AsyncMock(side_effect=lambda ctx: ctx)
+
     return {
         "requirement_parser": mock_parser,
         "challenge_engine": mock_challenge,
         "scenario_modeler": mock_scenario,
+        "characteristic_reasoner": mock_char_reasoner,
+        "conflict_analyzer": mock_conflict,
+        "architecture_generator": mock_arch_gen,
+        "diagram_generator": mock_diagram_gen,
     }
 
 

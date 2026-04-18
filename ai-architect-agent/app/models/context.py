@@ -44,9 +44,23 @@ class ArchitectureContext(BaseModel):
     hidden_assumptions: list[dict] = Field(default_factory=list)
     clarifying_questions: list[dict] = Field(default_factory=list)
     scenarios: list[dict] = Field(default_factory=list)
+
+    # Stage 4 — populated by CharacteristicReasoningEngine
     characteristics: list[dict] = Field(default_factory=list)
+
+    # Stage 5 — populated by CharacteristicConflictAnalyzer
     characteristic_conflicts: list[dict] = Field(default_factory=list)
+    underrepresented_characteristics: list[str] = Field(default_factory=list)
+    overspecified_characteristics: list[str] = Field(default_factory=list)
+    tension_summary: str = ""
+
+    # Stage 6 — populated by ArchitectureGenerator
     architecture_design: dict[str, Any] = Field(default_factory=dict)
+    similar_past_designs: list[dict] = Field(default_factory=list)
+
+    # Stage 7 — populated by DiagramGenerator
+    mermaid_component_diagram: str = ""
+    mermaid_sequence_diagram: str = ""
     trade_offs: list[dict] = Field(default_factory=list)
     adl_rules: list[dict] = Field(default_factory=list)
     weaknesses: list[dict] = Field(default_factory=list)

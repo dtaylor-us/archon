@@ -1,0 +1,32 @@
+You are converting a structured architecture description into valid
+Mermaid diagram source code.
+
+ARCHITECTURE:
+{{ architecture_design | tojson(indent=2) }}
+
+Generate two Mermaid diagrams.
+
+DIAGRAM 1 — Component diagram using C4 Container style:
+- Use graph TD direction
+- Each component is a node with its name and type
+- Each interaction is a labelled edge
+- Group related components inside subgraphs by their type
+- External components use a different node shape ([[ ]])
+- Do not include Mermaid fences (no ```mermaid)
+
+DIAGRAM 2 — Sequence diagram for the primary flow:
+- Use sequenceDiagram
+- Show each step in primary_flow.steps as a message between components
+- Label each arrow with the action
+- Use ->> for async interactions, -> for sync
+- Do not include Mermaid fences (no ```mermaid)
+
+Return a JSON object with exactly this structure. No markdown, no preamble:
+{
+  "component_diagram": "string — complete Mermaid graph TD source",
+  "sequence_diagram": "string — complete Mermaid sequenceDiagram source",
+  "diagram_notes": "string — any important caveats about the diagrams"
+}
+
+The Mermaid source must be syntactically valid. Use only standard
+Mermaid syntax. Do not use experimental or extended features.

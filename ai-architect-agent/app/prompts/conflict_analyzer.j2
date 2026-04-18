@@ -1,0 +1,35 @@
+You are a principal architect performing tension analysis on a set
+of architecture characteristics.
+
+SYSTEM:
+{{ parsed_entities.get('domain', 'unknown') }} —
+{{ parsed_entities.get('system_type', 'unknown') }}
+
+INFERRED CHARACTERISTICS:
+{{ characteristics | tojson(indent=2) }}
+
+For each tension between characteristics, explain what specifically
+breaks when you optimise for one at the expense of the other in
+THIS system. Generic statements like "performance vs cost" are not
+acceptable — ground every conflict in the system context.
+
+Return a JSON object with exactly this structure. No markdown, no preamble:
+{
+  "conflicts": [
+    {
+      "characteristic_a": "string",
+      "characteristic_b": "string",
+      "nature": "direct_conflict | tension | risk_amplifier",
+      "explanation": "string — what breaks in this system when you optimise for characteristic_a at the expense of b",
+      "resolution_strategy": "string — how a senior architect would manage this tension",
+      "priority_recommendation": "string — which to favour and why, given the scenarios"
+    }
+  ],
+  "underrepresented": [
+    "string — characteristic name that should have been listed given the requirements but was not"
+  ],
+  "overspecified": [
+    "string — characteristic name that is unlikely to matter for this use case"
+  ],
+  "tension_summary": "string — one paragraph summarising the key trade-off landscape an architect must navigate"
+}

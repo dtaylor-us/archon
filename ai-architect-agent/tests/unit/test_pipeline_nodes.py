@@ -11,7 +11,7 @@ from app.pipeline.nodes import (
     characteristic_inference,
     conflict_analysis,
     architecture_generation,
-    trade_off_analysis,
+    diagram_generation,
     adl_generation,
     weakness_analysis,
     fmea_analysis,
@@ -33,10 +33,26 @@ def _setup_registry(mock_llm: AsyncMock):
     mock_scenario = AsyncMock()
     mock_scenario.run = AsyncMock(side_effect=lambda ctx: ctx)
 
+    mock_char_reasoner = AsyncMock()
+    mock_char_reasoner.run = AsyncMock(side_effect=lambda ctx: ctx)
+
+    mock_conflict = AsyncMock()
+    mock_conflict.run = AsyncMock(side_effect=lambda ctx: ctx)
+
+    mock_arch_gen = AsyncMock()
+    mock_arch_gen.run = AsyncMock(side_effect=lambda ctx: ctx)
+
+    mock_diagram = AsyncMock()
+    mock_diagram.run = AsyncMock(side_effect=lambda ctx: ctx)
+
     registry = {
         "requirement_parser": mock_parser,
         "challenge_engine": mock_challenge,
         "scenario_modeler": mock_scenario,
+        "characteristic_reasoner": mock_char_reasoner,
+        "conflict_analyzer": mock_conflict,
+        "architecture_generator": mock_arch_gen,
+        "diagram_generator": mock_diagram,
     }
     init_registry(registry)
     return registry
@@ -75,6 +91,46 @@ class TestLiveNodes:
 
         _setup_registry["scenario_modeler"].run.assert_awaited_once_with(base_context)
 
+    async def test_characteristic_inference_calls_reasoner(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
+    ):
+        """characteristic_inference() calls CharacteristicReasoningEngineTool.run()."""
+        state: PipelineState = {"context": base_context}
+
+        await characteristic_inference(state)
+
+        _setup_registry["characteristic_reasoner"].run.assert_awaited_once_with(base_context)
+
+    async def test_conflict_analysis_calls_analyzer(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
+    ):
+        """conflict_analysis() calls CharacteristicConflictAnalyzerTool.run()."""
+        state: PipelineState = {"context": base_context}
+
+        await conflict_analysis(state)
+
+        _setup_registry["conflict_analyzer"].run.assert_awaited_once_with(base_context)
+
+    async def test_architecture_generation_calls_generator(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
+    ):
+        """architecture_generation() calls ArchitectureGeneratorTool.run()."""
+        state: PipelineState = {"context": base_context}
+
+        await architecture_generation(state)
+
+        _setup_registry["architecture_generator"].run.assert_awaited_once_with(base_context)
+
+    async def test_diagram_generation_calls_diagram_tool(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
+    ):
+        """diagram_generation() calls DiagramGeneratorTool.run()."""
+        state: PipelineState = {"context": base_context}
+
+        await diagram_generation(state)
+
+        _setup_registry["diagram_generator"].run.assert_awaited_once_with(base_context)
+
 
 class TestStubNodes:
     """Tests for stub pipeline nodes (not yet implemented)."""
@@ -86,10 +142,6 @@ class TestStubNodes:
         state: PipelineState = {"context": base_context}
 
         for node_fn in [
-            characteristic_inference,
-            conflict_analysis,
-            architecture_generation,
-            trade_off_analysis,
             adl_generation,
             weakness_analysis,
             fmea_analysis,
@@ -105,10 +157,6 @@ class TestStubNodes:
         state: PipelineState = {"context": base_context}
 
         for node_fn in [
-            characteristic_inference,
-            conflict_analysis,
-            architecture_generation,
-            trade_off_analysis,
             adl_generation,
             weakness_analysis,
             fmea_analysis,

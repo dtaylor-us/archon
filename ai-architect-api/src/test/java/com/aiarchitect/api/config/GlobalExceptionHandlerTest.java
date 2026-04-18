@@ -3,6 +3,7 @@ package com.aiarchitect.api.config;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -19,6 +20,15 @@ class GlobalExceptionHandlerTest {
                 new IllegalArgumentException("bad input"));
         assertEquals(HttpStatus.BAD_REQUEST.value(), pd.getStatus());
         assertEquals("bad input", pd.getDetail());
+    }
+
+    @Test
+    void handleMessageNotReadable_returnsBadRequestForMalformedJson() {
+        HttpMessageNotReadableException ex = new HttpMessageNotReadableException(
+                "JSON parse error: Unexpected character");
+        ProblemDetail pd = handler.handleMessageNotReadable(ex);
+        assertEquals(HttpStatus.BAD_REQUEST.value(), pd.getStatus());
+        assertTrue(pd.getDetail().contains("Malformed request body"));
     }
 
     @Test

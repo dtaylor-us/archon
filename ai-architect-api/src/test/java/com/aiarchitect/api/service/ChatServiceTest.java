@@ -3,16 +3,19 @@ package com.aiarchitect.api.service;
 import com.aiarchitect.api.domain.model.*;
 import com.aiarchitect.api.dto.*;
 import com.aiarchitect.api.exception.AgentCommunicationException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -24,6 +27,8 @@ class ChatServiceTest {
 
     @Mock private ConversationService conversationService;
     @Mock private AgentBridgeService agentBridgeService;
+    @Mock private ArchitectureOutputService architectureOutputService;
+    @Spy  private ObjectMapper objectMapper = new ObjectMapper();
     @InjectMocks private ChatService chatService;
 
     private ChatRequest createRequest(String message, UUID conversationId) {
@@ -125,6 +130,45 @@ class ChatServiceTest {
                 ArgumentCaptor.forClass(AgentRequest.class);
         verify(agentBridgeService).stream(captor.capture());
         assertEquals(existing.toString(), captor.getValue().getConversationId());
+    }
+
+    @Test
+    void streamChat_persistsStructuredOutputAsValidJson() {
+        UUID convId = UUID.randomUUID();
+        Conversation conv = Conversation.builder()
+                .id(convId).userId("user1").title("t").build();
+        when(conversationService.resolveConversation(any(), eq("user1"), any()))
+                .thenReturn(conv);
+        when(conversationService.getRecentMessages(convId, 20))
+                .thenReturn(List.of());
+
+        AgentResponse chunkEvt = new AgentResponse();
+        chunkEvt.setType(AgentResponse.EventType.CHUNK);
+        chunkEvt.setContent("report");
+
+        AgentResponse completeEvt = new AgentResponse();
+        completeEvt.setType(AgentResponse.EventType.COMPLETE);
+        completeEvt.setPayload(Map.of("message", "Pipeline completed.", "stages", 11));
+
+        when(agentBridgeService.stream(any()))
+                .thenReturn(Flux.just(chunkEvt, completeEvt));
+
+        StepVerifier.create(chatService.streamChat(
+                createRequest("design", convId), "user1"))
+                .expectNextCount(2)
+                .verifyComplete();
+
+        // Verify ASSISTANT message was saved with valid JSON structured output
+        ArgumentCaptor<String> structuredCaptor =
+                ArgumentCaptor.forClass(String.class);
+        verify(conversationService, times(2)).saveMessage(
+                any(), any(), any(), structuredCaptor.capture());
+        String json = structuredCaptor.getAllValues().get(1);
+        assertNotNull(json);
+        assertTrue(json.contains("\"message\""));
+        assertTrue(json.contains("\"stages\""));
+        // Ensure it's valid JSON (not Java Map.toString())
+        assertFalse(json.contains("="), "Should be JSON, not Map.toString()");
     }
 
     @Test

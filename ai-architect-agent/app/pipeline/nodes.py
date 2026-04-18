@@ -53,19 +53,23 @@ async def _stub_node(state: PipelineState) -> dict:
 
 
 async def characteristic_inference(state: PipelineState) -> dict:
-    return await _stub_node(state)
+    ctx = await _registry["characteristic_reasoner"].run(state["context"])
+    return {"context": ctx}
 
 
 async def conflict_analysis(state: PipelineState) -> dict:
-    return await _stub_node(state)
+    ctx = await _registry["conflict_analyzer"].run(state["context"])
+    return {"context": ctx}
 
 
 async def architecture_generation(state: PipelineState) -> dict:
-    return await _stub_node(state)
+    ctx = await _registry["architecture_generator"].run(state["context"])
+    return {"context": ctx}
 
 
-async def trade_off_analysis(state: PipelineState) -> dict:
-    return await _stub_node(state)
+async def diagram_generation(state: PipelineState) -> dict:
+    ctx = await _registry["diagram_generator"].run(state["context"])
+    return {"context": ctx}
 
 
 async def adl_generation(state: PipelineState) -> dict:

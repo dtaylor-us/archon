@@ -1,17 +1,26 @@
 from __future__ import annotations
 
 from app.llm.client import LLMClient
+from app.memory.store import MemoryStore
+from app.tools.architecture_generator import ArchitectureGeneratorTool
 from app.tools.base import BaseTool
-from app.tools.requirement_parser import RequirementParserTool
 from app.tools.challenge_engine import RequirementChallengeEngineTool
+from app.tools.characteristic_reasoner import CharacteristicReasoningEngineTool
+from app.tools.conflict_analyzer import CharacteristicConflictAnalyzerTool
+from app.tools.diagram_generator import DiagramGeneratorTool
+from app.tools.requirement_parser import RequirementParserTool
 from app.tools.scenario_modeler import ScenarioModelerTool
 
 
-def build_registry(llm_client: LLMClient) -> dict[str, BaseTool]:
+def build_registry(
+    llm_client: LLMClient,
+    memory_store: MemoryStore,
+) -> dict[str, BaseTool]:
     """Build and return the tool registry mapping tool names to instances.
 
     Args:
         llm_client: The shared LLM client instance.
+        memory_store: The shared Qdrant-backed memory store.
 
     Returns:
         Dict mapping tool name strings to initialized tool instances.
@@ -20,4 +29,8 @@ def build_registry(llm_client: LLMClient) -> dict[str, BaseTool]:
         "requirement_parser": RequirementParserTool(llm_client),
         "challenge_engine": RequirementChallengeEngineTool(llm_client),
         "scenario_modeler": ScenarioModelerTool(llm_client),
+        "characteristic_reasoner": CharacteristicReasoningEngineTool(llm_client),
+        "conflict_analyzer": CharacteristicConflictAnalyzerTool(llm_client),
+        "architecture_generator": ArchitectureGeneratorTool(llm_client, memory_store),
+        "diagram_generator": DiagramGeneratorTool(llm_client),
     }

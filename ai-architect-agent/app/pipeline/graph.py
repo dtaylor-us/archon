@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import AsyncGenerator
 
@@ -7,6 +8,7 @@ from langgraph.graph import StateGraph, END
 from pydantic import BaseModel
 
 from app.models import ArchitectureContext
+from app.pipeline.formatter import format_response
 from app.pipeline.nodes import (
     PipelineState,
     requirement_parsing,
@@ -15,7 +17,7 @@ from app.pipeline.nodes import (
     characteristic_inference,
     conflict_analysis,
     architecture_generation,
-    trade_off_analysis,
+    diagram_generation,
     adl_generation,
     weakness_analysis,
     fmea_analysis,
@@ -32,7 +34,7 @@ ORDERED_STAGES: list[str] = [
     "characteristic_inference",
     "conflict_analysis",
     "architecture_generation",
-    "trade_off_analysis",
+    "diagram_generation",
     "adl_generation",
     "weakness_analysis",
     "fmea_analysis",
@@ -48,7 +50,7 @@ _NODE_FN_MAP = {
     "characteristic_inference": characteristic_inference,
     "conflict_analysis": conflict_analysis,
     "architecture_generation": architecture_generation,
-    "trade_off_analysis": trade_off_analysis,
+    "diagram_generation": diagram_generation,
     "adl_generation": adl_generation,
     "weakness_analysis": weakness_analysis,
     "fmea_analysis": fmea_analysis,
@@ -108,6 +110,7 @@ def compile_pipeline() -> None:
 
 async def run_pipeline(
     context: ArchitectureContext,
+    memory_store: object | None = None,
 ) -> AsyncGenerator[str, None]:
     """Execute the full pipeline and yield NDJSON chunks as stages progress.
 
@@ -134,10 +137,35 @@ async def run_pipeline(
                 if "context" in update:
                     context = update["context"]
 
+                # Build enriched payload for STAGE_COMPLETE
+                stage_payload: dict = {"status": "complete", "stage": node_name}
+                if node_name == "characteristic_inference":
+                    stage_payload["characteristic_count"] = len(
+                        context.characteristics
+                    )
+                elif node_name == "conflict_analysis":
+                    stage_payload["conflict_count"] = len(
+                        context.characteristic_conflicts
+                    )
+                elif node_name == "architecture_generation":
+                    stage_payload["component_count"] = len(
+                        context.architecture_design.get("components", [])
+                    )
+                    stage_payload["style"] = context.architecture_design.get(
+                        "style", ""
+                    )
+                elif node_name == "diagram_generation":
+                    stage_payload["component_diagram_length"] = len(
+                        context.mermaid_component_diagram
+                    )
+                    stage_payload["sequence_diagram_length"] = len(
+                        context.mermaid_sequence_diagram
+                    )
+
                 yield _chunk(
                     "STAGE_COMPLETE",
                     stage=node_name,
-                    payload={"status": "complete", "stage": node_name},
+                    payload=stage_payload,
                 )
 
                 # Emit STAGE_START for the next stage if there is one
@@ -153,6 +181,38 @@ async def run_pipeline(
         )
         return
 
+    # Emit the formatted architecture report as CHUNK content
+    report = format_response(context)
+    yield _chunk("CHUNK", content=report)
+
+    # Build structured output for persistence
+    structured = {
+        k: v for k, v in {
+            "parsed_entities": context.parsed_entities,
+            "missing_requirements": context.missing_requirements,
+            "ambiguities": context.ambiguities,
+            "hidden_assumptions": context.hidden_assumptions,
+            "clarifying_questions": context.clarifying_questions,
+            "scenarios": context.scenarios,
+            "characteristics": context.characteristics,
+            "characteristic_conflicts": context.characteristic_conflicts,
+            "underrepresented_characteristics": context.underrepresented_characteristics,
+            "overspecified_characteristics": context.overspecified_characteristics,
+            "tension_summary": context.tension_summary,
+            "architecture_design": context.architecture_design,
+            "similar_past_designs": context.similar_past_designs,
+            "mermaid_component_diagram": context.mermaid_component_diagram,
+            "mermaid_sequence_diagram": context.mermaid_sequence_diagram,
+            "trade_offs": context.trade_offs,
+            "adl_rules": context.adl_rules,
+            "weaknesses": context.weaknesses,
+            "fmea_risks": context.fmea_risks,
+            "review_findings": context.review_findings,
+            "governance_score": context.governance_score,
+        }.items()
+        if v  # only include non-empty fields
+    }
+
     yield _chunk(
         "COMPLETE",
         conversationId=context.conversation_id,
@@ -160,5 +220,27 @@ async def run_pipeline(
             "message": "Pipeline completed.",
             "stages_executed": len(ORDERED_STAGES),
             "iteration": context.iteration,
+            "structured_output": structured,
         },
     )
+
+    # Fire-and-forget: store design in Qdrant for future similarity lookups
+    if memory_store and context.architecture_design:
+        asyncio.create_task(_store_design_safe(
+            memory_store, context,
+        ))
+
+
+async def _store_design_safe(
+    memory_store: object, context: ArchitectureContext,
+) -> None:
+    """Best-effort background store — never raises."""
+    try:
+        await memory_store.store_design(  # type: ignore[attr-defined]
+            conversation_id=context.conversation_id,
+            requirements=context.raw_requirements,
+            architecture_design=context.architecture_design,
+            characteristics=context.characteristics,
+        )
+    except Exception:
+        logger.warning("Failed to store design after pipeline", exc_info=True)

@@ -1,0 +1,67 @@
+You are a principal architect generating a system architecture.
+You must produce a design that is directly shaped by the inferred
+architecture characteristics. Every component decision must be
+traceable to at least one characteristic.
+
+REQUIREMENTS:
+{{ raw_requirements }}
+
+DOMAIN: {{ parsed_entities.get('domain', 'unknown') }}
+SYSTEM TYPE: {{ parsed_entities.get('system_type', 'unknown') }}
+
+ARCHITECTURE CHARACTERISTICS (these drive your design decisions):
+{{ characteristics | tojson(indent=2) }}
+
+CHARACTERISTIC TENSIONS TO NAVIGATE:
+{{ characteristic_conflicts | tojson(indent=2) }}
+
+TARGET SCENARIO: {{ target_scenario }}
+
+{% if similar_past_designs %}
+SIMILAR PAST DESIGNS FOR REFERENCE (use as inspiration, not templates):
+{{ similar_past_designs | tojson(indent=2) }}
+{% endif %}
+
+Generate a complete architecture for this system. Every component
+must have a clear reason for existing. Do not include components
+that are not justified by the requirements or characteristics.
+
+Return a JSON object with exactly this structure. No markdown, no preamble:
+{
+  "style": "string — overall architectural style e.g. event-driven microservices",
+  "domain": "string",
+  "system_type": "string",
+  "rationale": "string — why this style was chosen given the characteristics",
+  "components": [
+    {
+      "name": "string",
+      "type": "service | database | queue | gateway | cache | external",
+      "responsibility": "string — one sentence, what this component owns",
+      "technology": "string — specific technology recommendation",
+      "technology_rationale": "string — why this technology given the characteristics",
+      "characteristic_drivers": ["string — which characteristics justify this component"],
+      "exposes": ["string — APIs or events this component produces"],
+      "depends_on": ["string — component names this component calls or reads from"]
+    }
+  ],
+  "interactions": [
+    {
+      "from": "string — component name",
+      "to": "string — component name",
+      "pattern": "sync-http | async-event | async-queue | sync-grpc | sync-db",
+      "description": "string — what data or command flows",
+      "rationale": "string — why this interaction pattern given the characteristics"
+    }
+  ],
+  "primary_flow": {
+    "description": "string — name of the primary user-facing flow",
+    "steps": [
+      { "step": "number", "component": "string", "action": "string" }
+    ]
+  },
+  "characteristic_coverage": {
+    "well_addressed": ["string — characteristics strongly addressed by this design"],
+    "partially_addressed": ["string — characteristics acknowledged but not fully solved"],
+    "deferred": ["string — characteristics intentionally deferred to a later phase"]
+  }
+}

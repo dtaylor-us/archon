@@ -80,6 +80,10 @@ class LLMClient:
 
         content = response.content
 
+        # Strip markdown fences that LLMs sometimes add despite instructions
+        if response_format == "json":
+            content = self._strip_markdown_fences(content)
+
         input_tokens = getattr(response, "usage_metadata", {})
         if isinstance(input_tokens, dict):
             logger.debug(
@@ -91,3 +95,16 @@ class LLMClient:
             logger.debug("LLM response received (token counts unavailable)")
 
         return content
+
+    @staticmethod
+    def _strip_markdown_fences(text: str) -> str:
+        """Remove ```json ... ``` or ``` ... ``` wrappers from LLM output."""
+        stripped = text.strip()
+        if stripped.startswith("```"):
+            # Remove opening fence (```json or ```)
+            first_newline = stripped.index("\n")
+            stripped = stripped[first_newline + 1 :]
+            # Remove closing fence
+            if stripped.rstrip().endswith("```"):
+                stripped = stripped.rstrip()[:-3].rstrip()
+        return stripped

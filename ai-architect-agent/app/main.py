@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.agent import router as agent_router
 from app.llm.client import LLMClient
+from app.memory.store import MemoryStore
 from app.pipeline import compile_pipeline, init_registry
 from app.tools.registry import build_registry
 
@@ -26,8 +27,14 @@ async def lifespan(app: FastAPI):
     app.state.llm_client = llm_client
     logger.info("LLMClient attached to app.state")
 
+    # Initialise Qdrant-backed memory store
+    memory_store = MemoryStore()
+    await memory_store._ensure_collection()
+    app.state.memory_store = memory_store
+    logger.info("MemoryStore attached to app.state")
+
     # Build tool registry and wire it into pipeline nodes
-    registry = build_registry(llm_client)
+    registry = build_registry(llm_client, memory_store)
     app.state.tool_registry = registry
     init_registry(registry)
     logger.info("Tool registry initialised with %d tools", len(registry))

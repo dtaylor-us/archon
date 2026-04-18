@@ -44,6 +44,7 @@ def _stage_payload(stage: str, **extra: object) -> dict:
 @router.post("/agent/stream")
 async def agent_stream(
     request: AgentStreamRequest,
+    raw_request: Request,
     x_internal_secret: str = Header(
         default=None, alias="x-internal-secret"),
 ):
@@ -71,8 +72,10 @@ async def agent_stream(
         ],
     )
 
+    memory_store = getattr(raw_request.app.state, "memory_store", None)
+
     return StreamingResponse(
-        run_pipeline(ctx),
+        run_pipeline(ctx, memory_store=memory_store),
         media_type="application/x-ndjson",
         headers={"X-Conversation-Id": ctx.conversation_id},
     )
