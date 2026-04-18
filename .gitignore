@@ -1,0 +1,58 @@
+# ========================
+# Environment / Secrets
+# ========================
+.env
+*.env.local
+
+# ========================
+# Java / Maven
+# ========================
+ai-architect-api/target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+hs_err_pid*
+
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.venv/
+venv/
+env/
+.eggs/
+
+# ========================
+# Docker
+# ========================
+docker-compose.override.yml
+
+# ========================
+# IDE / Editor
+# ========================
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+.factorypath
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
