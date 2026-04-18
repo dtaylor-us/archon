@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aiarchitect-postgres
+    environment:
+      POSTGRES_DB: aiarchitect
+      POSTGRES_USER: aiarchitect
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
+    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiarchitect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    container_name: aiarchitect-qdrant
+    ports: ["6333:6333", "6334:6334"]
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  agent:
+    build:
+      context: ./ai-architect-agent
+      dockerfile: Dockerfile
+    container_name: aiarchitect-agent
+    environment:
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-dev-secret-change-in-prod}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      QDRANT_URL: http://qdrant:6333
+      LOG_LEVEL: INFO
+    ports: ["8001:8001"]
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./ai-architect-api
+      dockerfile: Dockerfile
+    container_name: aiarchitect-api
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/aiarchitect
+      DB_USER: aiarchitect
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
+      AGENT_BASE_URL: http://agent:8001
+      AGENT_INTERNAL_SECRET: ${INTERNAL_SECRET:-dev-secret-change-in-prod}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-minimum-32-chars-here}
+      SPRING_PROFILES_ACTIVE: local
+    ports: ["8080:8080"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  qdrant_data:
