@@ -1,0 +1,34 @@
+# Copy this file to prod.tfvars and fill in your values.
+#   cp terraform/environments/prod.tfvars.example terraform/environments/prod.tfvars
+#
+# Never commit prod.tfvars to git — it is in .gitignore.
+#
+# For sensitive values use environment variables:
+#   export TF_VAR_openai_api_key="sk-your-key-here"
+#   export TF_VAR_azure_openai_endpoint="https://your-resource.openai.azure.com/"
+#   export TF_VAR_azure_openai_api_key="your-key-here"
+
+subscription_id    = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # az account show --query id -o tsv
+location           = "uksouth"                                # az account list-locations -o table
+environment        = "prod"                                   # dev or prod
+project            = "aiarchitect"                            # lowercase alphanumeric, max 12 chars
+
+deployer_object_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # az ad signed-in-user show --query id -o tsv
+
+aks_node_count     = 3                                        # initial node count for prod
+aks_min_node_count = 2                                        # keep at least 2 nodes for HA
+aks_max_node_count = 10                                       # allow scaling under prod load
+aks_node_vm_size   = "Standard_D4s_v3"                        # 4 vCPU 16 GB — recommended for prod
+
+db_admin_username  = "aiarchitect"                            # PostgreSQL admin login
+db_sku             = "GP_Standard_D2s_v3"                     # General Purpose 2 vCores 8 GB — prod tier
+db_storage_mb      = 131072                                   # 128 GB for prod data volume
+
+llm_provider       = "openai"                                 # openai or azure
+
+github_actions_sp_object_id = ""                             # az ad sp list --display-name sp-aiarchitect-github --query '[0].id' -o tsv
+
+# Sensitive values — use environment variables, not this file.
+# openai_api_key        = ""  # Use: export TF_VAR_openai_api_key="sk-..."
+# azure_openai_endpoint = ""  # Use: export TF_VAR_azure_openai_endpoint="https://..."
+# azure_openai_api_key  = ""  # Use: export TF_VAR_azure_openai_api_key="your-key"

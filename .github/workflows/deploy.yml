@@ -1,0 +1,138 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Only one deployment can run at a time.
+# A newer push to main will cancel an in-progress deployment.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+env:
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build-and-push:
+    name: Build and push Docker images
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR login
+        run: az acr login --name ${{ secrets.ACR_NAME }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push API
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-architect-api
+          file: ./ai-architect-api/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/api:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/api:latest
+          cache-from: type=registry,ref=${{ secrets.ACR_LOGIN_SERVER }}/api:cache
+          cache-to: type=registry,ref=${{ secrets.ACR_LOGIN_SERVER }}/api:cache,mode=max
+
+      - name: Build and push agent
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-architect-agent
+          file: ./ai-architect-agent/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/agent:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/agent:latest
+          cache-from: type=registry,ref=${{ secrets.ACR_LOGIN_SERVER }}/agent:cache
+          cache-to: type=registry,ref=${{ secrets.ACR_LOGIN_SERVER }}/agent:cache,mode=max
+
+      - name: Build and push UI
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-architect-ui
+          file: ./ai-architect-ui/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/ui:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/ui:latest
+          cache-from: type=registry,ref=${{ secrets.ACR_LOGIN_SERVER }}/ui:cache
+          cache-to: type=registry,ref=${{ secrets.ACR_LOGIN_SERVER }}/ui:cache,mode=max
+
+  deploy:
+    name: Deploy to AKS
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name ${{ secrets.AKS_CLUSTER_NAME }} \
+            --overwrite-existing
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: "3.14.0"
+
+      - name: Deploy Helm chart
+        run: |
+          helm upgrade --install ai-architect helm/ai-architect/ \
+            --namespace ai-architect \
+            --create-namespace \
+            --wait \
+            --timeout 10m \
+            --atomic \
+            --set api.image.repository=${{ secrets.ACR_LOGIN_SERVER }}/api \
+            --set api.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
+            --set agent.image.repository=${{ secrets.ACR_LOGIN_SERVER }}/agent \
+            --set agent.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
+            --set ui.image.repository=${{ secrets.ACR_LOGIN_SERVER }}/ui \
+            --set ui.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
+            --set keyVault.vaultName=${{ secrets.KEY_VAULT_NAME }} \
+            --set keyVault.tenantId=${{ secrets.KEY_VAULT_TENANT_ID }} \
+            --set keyVault.userAssignedIdentityClientId=${{ secrets.AKS_KUBELET_CLIENT_ID }}
+
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/ai-architect-api \
+            --namespace ai-architect --timeout=5m
+          kubectl rollout status deployment/ai-architect-agent \
+            --namespace ai-architect --timeout=5m
+          kubectl rollout status deployment/ai-architect-ui \
+            --namespace ai-architect --timeout=5m
+
+      - name: Print status
+        if: always()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n ai-architect
+          echo "=== Ingress ==="
+          kubectl get ingress -n ai-architect
+
+      - name: Debug failed pods
+        if: failure()
+        run: |
+          kubectl get pods -n ai-architect -o wide
+          for pod in $(kubectl get pods -n ai-architect \
+            --field-selector=status.phase!=Running -o name); do
+            echo "=== Logs for $pod ==="
+            kubectl logs $pod -n ai-architect --tail=50
+            echo "=== Events for $pod ==="
+            kubectl describe $pod -n ai-architect | tail -20
+          done

@@ -1,0 +1,16 @@
+output "fqdn" {
+  description = "Fully qualified domain name of the PostgreSQL Flexible Server."
+  value       = azurerm_postgresql_flexible_server.main.fqdn
+}
+
+output "admin_password" {
+  description = "Generated administrator password for the PostgreSQL server. Sensitive."
+  value       = random_password.db_admin.result
+  sensitive   = true
+}
+
+output "connection_string" {
+  description = "JDBC connection string for the aiarchitect database. Sensitive — contains credentials."
+  value       = "jdbc:postgresql://${azurerm_postgresql_flexible_server.main.fqdn}:5432/aiarchitect?sslmode=require"
+  sensitive   = true
+}

@@ -24,6 +24,15 @@ agent:
     minReplicas: 2
     maxReplicas: 6
     targetCPU: 70
+  # Schedule agent pods on the dedicated agent node pool.
+  # The node taint workload=agent:NoSchedule is applied by Terraform.
+  nodeSelector:
+    workload: agent
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: agent
+      effect: NoSchedule
   env:
     OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector:4317"
     OTEL_SERVICE_NAME: "archon-agent"
@@ -154,6 +163,13 @@ networkPolicy:
   enabled: true
 
 # ── Azure Key Vault CSI ─────────────────────────────────────────
+# Override individual keys at deploy time with --set, e.g.:
+#   --set keyVault.vaultName=kv-aiarchitect-dev
+keyVault:
+  enabled: true
+  vaultName: ""
+  tenantId: ""
+  userAssignedIdentityClientId: ""
 keyvault:
   enabled: true
   vaultName: archon-kv
