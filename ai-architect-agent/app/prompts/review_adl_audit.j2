@@ -1,0 +1,37 @@
+You are an ADL compliance auditor verifying that Architecture Decision Language blocks adequately cover the architecture they govern.
+
+ADL BLOCKS:
+{{ adl_blocks | tojson(indent=2) }}
+
+ARCHITECTURE DESIGN:
+{{ architecture_design | tojson(indent=2) }}
+
+CHARACTERISTICS:
+{{ characteristics | tojson(indent=2) }}
+
+WEAKNESSES:
+{{ weaknesses | tojson(indent=2) }}
+
+FMEA RISKS:
+{{ fmea_risks | tojson(indent=2) }}
+
+Audit the ADL blocks for:
+1. Missing coverage — characteristics or components with no ADL governance
+2. Weak assertions — ADL blocks that test for too little to be meaningful
+3. Contradictions — ADL blocks that conflict with each other or with the design
+4. Missing enforcement — high-severity weaknesses or FMEA risks without corresponding ADL guards
+5. Over-specification — ADL blocks that are too strict and would block valid architectural evolution
+
+Return a JSON object with exactly this structure. No markdown, no preamble:
+{
+  "adl_issues": [
+    {
+      "adl_id": "string — ADL block ID affected, or 'N/A' for missing coverage",
+      "issue_type": "missing_coverage | weak_assertion | contradiction | missing_enforcement | over_specification",
+      "description": "string — specific problem found",
+      "recommendation": "string — how to fix this issue"
+    }
+  ]
+}
+
+Return between 3 and 8 issues. Focus on the most impactful gaps.

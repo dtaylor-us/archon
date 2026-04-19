@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import AsyncGenerator
 
 from langgraph.graph import StateGraph, END
 from pydantic import BaseModel
 
 from app.models import ArchitectureContext
+from app.observability import (
+    pipeline_span, increment_active_runs, decrement_active_runs,
+    record_stage_duration,
+)
+from app.llm.cost_tracker import start_tracking, get_tracker
 from app.pipeline.formatter import format_response
 from app.pipeline.nodes import (
     PipelineState,
@@ -20,8 +26,7 @@ from app.pipeline.nodes import (
     diagram_generation,
     trade_off_analysis,
     adl_generation,
-    weakness_analysis,
-    fmea_analysis,
+    weakness_and_fmea,
     architecture_review,
 )
 
@@ -38,8 +43,7 @@ ORDERED_STAGES: list[str] = [
     "diagram_generation",
     "trade_off_analysis",
     "adl_generation",
-    "weakness_analysis",
-    "fmea_analysis",
+    "weakness_and_fmea",
     "architecture_review",
 ]
 
@@ -55,8 +59,7 @@ _NODE_FN_MAP = {
     "diagram_generation": diagram_generation,
     "trade_off_analysis": trade_off_analysis,
     "adl_generation": adl_generation,
-    "weakness_analysis": weakness_analysis,
-    "fmea_analysis": fmea_analysis,
+    "weakness_and_fmea": weakness_and_fmea,
     "architecture_review": architecture_review,
 }
 
@@ -129,12 +132,23 @@ async def run_pipeline(
     # Emit STAGE_START for the first stage before graph execution begins
     yield _chunk("STAGE_START", stage=ORDERED_STAGES[0])
 
+    # Track per-stage wall-clock time for metrics
+    stage_start_time: float = time.monotonic()
+
+    # Start cost tracking for this pipeline run
+    usage_tracker = start_tracking()
+
+    increment_active_runs()
     try:
         async for event in _compiled.astream(initial_state, stream_mode="updates"):
             # event is dict[str, dict] — keys are node names, values are state updates
             for node_name, update in event.items():
                 if node_name not in _STAGE_SET:
                     continue
+
+                # Record stage duration from the last STAGE_START to now
+                elapsed = time.monotonic() - stage_start_time
+                record_stage_duration(node_name, elapsed)
 
                 # Update context from node output
                 if "context" in update:
@@ -218,14 +232,38 @@ async def run_pipeline(
                         for b in context.adl_blocks
                         if b.characteristic_enforced
                     })
-                elif node_name == "weakness_analysis":
+                elif node_name == "weakness_and_fmea":
                     stage_payload["weakness_count"] = len(
                         context.weaknesses
                     )
-                    stage_payload["most_critical"] = (
+                    stage_payload["most_critical_weakness"] = (
                         context.weaknesses[0].get("id", "")
                         if context.weaknesses
                         else ""
+                    )
+                    stage_payload["fmea_risk_count"] = len(
+                        context.fmea_risks
+                    )
+                    stage_payload["critical_risk_count"] = len(
+                        context.fmea_critical_risks
+                    )
+                    stage_payload["top_rpn"] = (
+                        context.fmea_risks[0].get("rpn", 0)
+                        if context.fmea_risks
+                        else 0
+                    )
+                elif node_name == "architecture_review":
+                    stage_payload["governance_score"] = (
+                        context.governance_score
+                    )
+                    stage_payload["governance_score_breakdown"] = (
+                        context.governance_score_breakdown
+                    )
+                    stage_payload["should_reiterate"] = (
+                        context.should_reiterate
+                    )
+                    stage_payload["recommendation_count"] = len(
+                        context.improvement_recommendations
                     )
 
                 yield _chunk(
@@ -238,6 +276,7 @@ async def run_pipeline(
                 idx = ORDERED_STAGES.index(node_name)
                 if idx + 1 < len(ORDERED_STAGES):
                     yield _chunk("STAGE_START", stage=ORDERED_STAGES[idx + 1])
+                    stage_start_time = time.monotonic()
     except Exception as exc:
         logger.error("Pipeline error: %s", str(exc))
         yield _chunk(
@@ -245,6 +284,32 @@ async def run_pipeline(
             content=f"Pipeline error: {str(exc)}",
             payload={"error": str(exc), "conversationId": context.conversation_id},
         )
+        return
+    finally:
+        decrement_active_runs()
+
+    # ── Re-iteration gate ─────────────────────────────────────────
+    if context.should_reiterate and not context.is_final_iteration:
+        logger.info(
+            "Re-iteration triggered (iteration=%d, score=%s)",
+            context.iteration,
+            context.governance_score,
+        )
+        yield _chunk(
+            "RE_ITERATE",
+            conversationId=context.conversation_id,
+            payload={
+                "iteration": context.iteration,
+                "governance_score": context.governance_score,
+                "constraints": context.review_constraints,
+                "message": "Governance score below threshold — re-iterating pipeline.",
+            },
+        )
+
+        # Increment iteration and re-run the pipeline
+        context.iteration += 1
+        async for re_chunk in run_pipeline(context, memory_store=memory_store):
+            yield re_chunk
         return
 
     # Emit the formatted architecture report as CHUNK content
@@ -278,11 +343,19 @@ async def run_pipeline(
             "weaknesses": context.weaknesses,
             "weakness_summary": context.weakness_summary,
             "fmea_risks": context.fmea_risks,
+            "fmea_critical_risks": context.fmea_critical_risks,
             "review_findings": context.review_findings,
             "governance_score": context.governance_score,
+            "governance_score_breakdown": context.governance_score_breakdown,
+            "improvement_recommendations": context.improvement_recommendations,
         }.items()
         if v  # only include non-empty fields
     }
+
+    # Attach cost tracking data to context before building COMPLETE payload
+    final_tracker = get_tracker()
+    if final_tracker is not None:
+        context.token_usage = final_tracker.to_dict()
 
     yield _chunk(
         "COMPLETE",
@@ -292,6 +365,7 @@ async def run_pipeline(
             "stages_executed": len(ORDERED_STAGES),
             "iteration": context.iteration,
             "structured_output": structured,
+            "token_usage": context.token_usage,
         },
     )
 

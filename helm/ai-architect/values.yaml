@@ -1,0 +1,181 @@
+# ── Global ────────────────────────────────────────────────────────
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# ── Agent (Python / FastAPI) ─────────────────────────────────────
+agent:
+  replicaCount: 2
+  image:
+    repository: archon/ai-architect-agent
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 8001
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPU: 70
+  env:
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector:4317"
+    OTEL_SERVICE_NAME: "archon-agent"
+    OTEL_TRACES_SAMPLER: "parentbased_traceidratio"
+    OTEL_TRACES_SAMPLER_ARG: "0.1"
+    LLM_PROVIDER: "azure"
+  # Secret references — actual values sourced from Key Vault CSI
+  secretEnv:
+    - name: OPENAI_API_KEY
+      secretName: archon-secrets
+      secretKey: openai-api-key
+    - name: AZURE_OPENAI_API_KEY
+      secretName: archon-secrets
+      secretKey: azure-openai-api-key
+    - name: AZURE_OPENAI_ENDPOINT
+      secretName: archon-secrets
+      secretKey: azure-openai-endpoint
+
+# ── API (Spring Boot) ───────────────────────────────────────────
+api:
+  replicaCount: 2
+  image:
+    repository: archon/ai-architect-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 8080
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPU: 70
+  env:
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector:4317"
+    OTEL_SERVICE_NAME: "archon-api"
+    MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0.1"
+    AGENT_BASE_URL: "http://ai-architect-agent:8001"
+  secretEnv:
+    - name: DB_PASSWORD
+      secretName: archon-secrets
+      secretKey: db-password
+    - name: JWT_SECRET
+      secretName: archon-secrets
+      secretKey: jwt-secret
+    - name: AGENT_INTERNAL_SECRET
+      secretName: archon-secrets
+      secretKey: agent-internal-secret
+
+# ── UI (React / Nginx) ──────────────────────────────────────────
+ui:
+  replicaCount: 2
+  image:
+    repository: archon/ai-architect-ui
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# ── PostgreSQL ──────────────────────────────────────────────────
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16"
+  storage:
+    size: 20Gi
+    storageClassName: managed-premium
+  env:
+    POSTGRES_DB: archon
+    POSTGRES_USER: archon
+  secretEnv:
+    - name: POSTGRES_PASSWORD
+      secretName: archon-secrets
+      secretKey: db-password
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# ── Qdrant ──────────────────────────────────────────────────────
+qdrant:
+  enabled: true
+  image:
+    repository: qdrant/qdrant
+    tag: latest
+  storage:
+    size: 10Gi
+    storageClassName: managed-premium
+  service:
+    httpPort: 6333
+    grpcPort: 6334
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+# ── Ingress ─────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  host: archon.example.com
+  tls:
+    enabled: true
+    secretName: archon-tls
+
+# ── Network Policy ──────────────────────────────────────────────
+networkPolicy:
+  enabled: true
+
+# ── Azure Key Vault CSI ─────────────────────────────────────────
+keyvault:
+  enabled: true
+  vaultName: archon-kv
+  tenantId: ""
+  clientId: ""
+  objects: |
+    array:
+      - |
+        objectName: openai-api-key
+        objectType: secret
+      - |
+        objectName: azure-openai-api-key
+        objectType: secret
+      - |
+        objectName: azure-openai-endpoint
+        objectType: secret
+      - |
+        objectName: db-password
+        objectType: secret
+      - |
+        objectName: jwt-secret
+        objectType: secret
+      - |
+        objectName: agent-internal-secret
+        objectType: secret

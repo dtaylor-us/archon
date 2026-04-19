@@ -9,6 +9,7 @@ from app.tools.challenge_engine import RequirementChallengeEngineTool
 from app.tools.characteristic_reasoner import CharacteristicReasoningEngineTool
 from app.tools.conflict_analyzer import CharacteristicConflictAnalyzerTool
 from app.tools.diagram_generator import DiagramGeneratorTool
+from app.tools.fmea_analyzer import FMEAPlusTool
 from app.tools.requirement_parser import RequirementParserTool
 from app.tools.scenario_modeler import ScenarioModelerTool
 from app.tools.trade_off_engine import TradeOffEngineTool
@@ -39,4 +40,5 @@ def build_registry(
         "trade_off_engine": TradeOffEngineTool(llm_client),
         "adl_generator": ADLGeneratorV2Tool(llm_client),
         "weakness_analyzer": WeaknessAnalyzerTool(llm_client),
+        "fmea_analyzer": FMEAPlusTool(llm_client),
     }

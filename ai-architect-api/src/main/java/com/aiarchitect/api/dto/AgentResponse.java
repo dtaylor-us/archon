@@ -26,7 +26,7 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AgentResponse {
     public enum EventType {
-        CHUNK, STAGE_START, STAGE_COMPLETE, TOOL_CALL, COMPLETE, ERROR
+        CHUNK, STAGE_START, STAGE_COMPLETE, TOOL_CALL, COMPLETE, RE_ITERATE, ERROR
     }
     private EventType type;
     private String content;

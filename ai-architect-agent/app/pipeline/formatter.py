@@ -39,9 +39,6 @@ def format_response(ctx: ArchitectureContext) -> str:
     if _has_challenges:
         sections.extend(_fmt_challenges(ctx))
 
-    if ctx.scenarios:
-        sections.extend(_fmt_scenarios(ctx.scenarios))
-
     if ctx.characteristics:
         sections.extend(_fmt_characteristics(ctx.characteristics))
 
@@ -254,93 +251,6 @@ def _fmt_challenges(ctx: ArchitectureContext) -> list[str]:
             else:
                 lines.append(f"{i}. {item}")
         lines.append("")
-
-    return lines
-
-
-def _fmt_scenarios(scenarios: list[dict]) -> list[str]:
-    lines: list[str] = ["## Scenarios\n"]
-
-    for i, scenario in enumerate(scenarios, 1):
-        if not isinstance(scenario, dict):
-            lines.append(f"- {scenario}")
-            continue
-
-        # ── Header ──
-        label = scenario.get(
-            "label", scenario.get("name", scenario.get("title", "")))
-        tier = scenario.get("tier", "")
-        if label and tier:
-            header = f"### {label} ({_title(tier)})"
-        elif label:
-            header = f"### {label}"
-        else:
-            header = f"### Scenario {i}"
-        lines.append(f"{header}\n")
-
-        # ── Full scenario (has load_profile) ──
-        load_profile = scenario.get("load_profile")
-        if isinstance(load_profile, dict):
-            basic: list[tuple[str, Any]] = []
-            for k in (
-                "architecture_shape", "deployment_target",
-                "team_size", "estimated_monthly_infra_cost_usd",
-            ):
-                v = scenario.get(k)
-                if v:
-                    basic.append((_title(k), v))
-            if basic:
-                lines.append("| Attribute | Value |")
-                lines.append("|:---|:---|")
-                for lbl, val in basic:
-                    lines.append(f"| {lbl} | {val} |")
-                lines.append("")
-
-            lines.append("**Load Profile:**\n")
-            lines.append("| Metric | Value |")
-            lines.append("|:---|:---|")
-            for k, v in load_profile.items():
-                lines.append(f"| {_title(k)} | {v} |")
-            lines.append("")
-
-            components = scenario.get("key_components", [])
-            if components:
-                lines.append(
-                    "**Key Components:** "
-                    + ", ".join(f"`{c}`" for c in components)
-                    + "\n"
-                )
-
-            skips = scenario.get("what_you_skip_at_this_tier", [])
-            if skips:
-                lines.append("**What You Skip:**\n")
-                for s in skips:
-                    lines.append(f"- {s}")
-                lines.append("")
-
-            triggers = scenario.get("migration_triggers", [])
-            if triggers:
-                lines.append("**Migration Triggers:**\n")
-                for t in triggers:
-                    lines.append(f"- {t}")
-                lines.append("")
-        else:
-            # ── Simple / unknown shape — key-value fallback ──
-            skip_keys = {"name", "title", "label", "tier"}
-            for k, v in scenario.items():
-                if k in skip_keys:
-                    continue
-                if isinstance(v, list):
-                    lines.append(f"**{_title(k)}:**\n")
-                    for sub in v:
-                        lines.append(f"- {sub}")
-                elif isinstance(v, dict):
-                    lines.append(f"**{_title(k)}:**\n")
-                    for sk, sv in v.items():
-                        lines.append(f"- {_title(sk)}: {sv}")
-                else:
-                    lines.append(f"- **{_title(k)}**: {v}")
-            lines.append("")
 
     return lines
 

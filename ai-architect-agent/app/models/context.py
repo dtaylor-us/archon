@@ -164,10 +164,20 @@ class ArchitectureContext(BaseModel):
     weaknesses: list[dict] = Field(default_factory=list)
     weakness_summary: str = ""
 
+    # Stage 11 — populated by FMEAPlusTool (runs in parallel with weakness)
     fmea_risks: list[dict] = Field(default_factory=list)
+    fmea_critical_risks: list[str] = Field(default_factory=list)
+
+    # Stage 12 — populated by ArchitectReviewAgent
     review_findings: dict[str, Any] = Field(default_factory=dict)
     governance_score: int | None = None
+    governance_score_breakdown: dict[str, Any] = Field(default_factory=dict)
+    improvement_recommendations: list[dict] = Field(default_factory=list)
+    review_constraints: list[str] = Field(default_factory=list)
     should_reiterate: bool = False
+
+    # Cost tracking — populated by LLM client via cost_tracker
+    token_usage: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def selected_architecture_style(self) -> str:
@@ -175,6 +185,11 @@ class ArchitectureContext(BaseModel):
         return self.architecture_design.get(
             "style_selection", {}
         ).get("selected_style", "")
+
+    @property
+    def is_final_iteration(self) -> bool:
+        """True when the pipeline must not re-iterate (max 2 iterations: 0 and 1)."""
+        return self.iteration >= 1
 
     def get_diagram(self, diagram_type: DiagramType) -> str:
         """Return the mermaid_source for the first diagram of the given type.

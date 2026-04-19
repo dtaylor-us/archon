@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 
-from app.llm.client import LLMClient
+from app.llm.client import LLMClient, set_llm_context
 from app.models import ArchitectureContext
 
 
@@ -28,6 +28,16 @@ class BaseTool(ABC):
             The mutated ArchitectureContext with this tool's output fields populated.
         """
         ...
+
+    async def execute(self, context: ArchitectureContext) -> ArchitectureContext:
+        """Set LLM context vars for tracing/metrics, then delegate to run().
+
+        All node functions should call execute() instead of run() directly
+        so that llm_span and record_tokens record the correct tool name
+        and conversation ID.
+        """
+        set_llm_context(self.name(), context.conversation_id)
+        return await self.run(context)
 
     def name(self) -> str:
         """Return the class name in snake_case."""

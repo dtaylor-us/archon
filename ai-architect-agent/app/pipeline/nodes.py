@@ -5,6 +5,7 @@ import logging
 from typing import TypedDict
 
 from app.models import ArchitectureContext
+from app.review.agent import ArchitectReviewAgent
 from app.tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
@@ -12,11 +13,20 @@ logger = logging.getLogger(__name__)
 # Module-level registry — set once during app startup via init_registry()
 _registry: dict[str, BaseTool] | None = None
 
+# Module-level review agent — set once during app startup via init_review_agent()
+_review_agent: ArchitectReviewAgent | None = None
+
 
 def init_registry(registry: dict[str, BaseTool]) -> None:
     """Set the module-level tool registry (called once at startup)."""
     global _registry
     _registry = registry
+
+
+def init_review_agent(agent: ArchitectReviewAgent) -> None:
+    """Set the module-level review agent (called once at startup)."""
+    global _review_agent
+    _review_agent = agent
 
 
 class PipelineState(TypedDict):
@@ -28,17 +38,17 @@ class PipelineState(TypedDict):
 # ---------------------------------------------------------------------------
 
 async def requirement_parsing(state: PipelineState) -> dict:
-    ctx = await _registry["requirement_parser"].run(state["context"])
+    ctx = await _registry["requirement_parser"].execute(state["context"])
     return {"context": ctx}
 
 
 async def requirement_challenge(state: PipelineState) -> dict:
-    ctx = await _registry["challenge_engine"].run(state["context"])
+    ctx = await _registry["challenge_engine"].execute(state["context"])
     return {"context": ctx}
 
 
 async def scenario_modeling(state: PipelineState) -> dict:
-    ctx = await _registry["scenario_modeler"].run(state["context"])
+    ctx = await _registry["scenario_modeler"].execute(state["context"])
     return {"context": ctx}
 
 
@@ -53,55 +63,95 @@ async def _stub_node(state: PipelineState) -> dict:
 
 
 async def characteristic_inference(state: PipelineState) -> dict:
-    ctx = await _registry["characteristic_reasoner"].run(state["context"])
+    ctx = await _registry["characteristic_reasoner"].execute(state["context"])
     return {"context": ctx}
 
 
 async def conflict_analysis(state: PipelineState) -> dict:
-    ctx = await _registry["conflict_analyzer"].run(state["context"])
+    ctx = await _registry["conflict_analyzer"].execute(state["context"])
     return {"context": ctx}
 
 
 async def architecture_generation(state: PipelineState) -> dict:
-    ctx = await _registry["architecture_generator"].run(state["context"])
+    ctx = await _registry["architecture_generator"].execute(state["context"])
     return {"context": ctx}
 
 
 async def diagram_generation(state: PipelineState) -> dict:
-    ctx = await _registry["diagram_generator"].run(state["context"])
+    ctx = await _registry["diagram_generator"].execute(state["context"])
     return {"context": ctx}
 
 
 async def trade_off_analysis(state: PipelineState) -> dict:
-    ctx = await _registry["trade_off_engine"].run(state["context"])
+    ctx = await _registry["trade_off_engine"].execute(state["context"])
     return {"context": ctx}
 
 
 async def adl_generation(state: PipelineState) -> dict:
-    ctx = await _registry["adl_generator"].run(state["context"])
+    ctx = await _registry["adl_generator"].execute(state["context"])
     return {"context": ctx}
 
 
 async def weakness_analysis(state: PipelineState) -> dict:
-    ctx = await _registry["weakness_analyzer"].run(state["context"])
+    ctx = await _registry["weakness_analyzer"].execute(state["context"])
+    return {"context": ctx}
+
+
+async def weakness_and_fmea(state: PipelineState) -> dict:
+    """Run weakness analysis and FMEA+ in parallel via asyncio.gather."""
+    ctx = state["context"]
+
+    # Run both tools concurrently — each gets its own copy of context
+    weakness_task = _registry["weakness_analyzer"].execute(ctx)
+    fmea_task = _registry["fmea_analyzer"].execute(ctx)
+
+    weakness_ctx, fmea_ctx = await asyncio.gather(
+        weakness_task, fmea_task
+    )
+
+    # Merge results: weakness results from weakness_ctx, FMEA from fmea_ctx
+    ctx.weaknesses = weakness_ctx.weaknesses
+    ctx.weakness_summary = weakness_ctx.weakness_summary
+    ctx.fmea_risks = fmea_ctx.fmea_risks
+    ctx.fmea_critical_risks = fmea_ctx.fmea_critical_risks
+
+    logger.info(
+        "weakness_and_fmea: %d weaknesses, %d FMEA risks (%d critical)",
+        len(ctx.weaknesses),
+        len(ctx.fmea_risks),
+        len(ctx.fmea_critical_risks),
+    )
     return {"context": ctx}
 
 
 async def fmea_analysis(state: PipelineState) -> dict:
-    return await _stub_node(state)
+    """Standalone FMEA node — kept for backward compatibility."""
+    ctx = await _registry["fmea_analyzer"].execute(state["context"])
+    return {"context": ctx}
 
 
 async def architecture_review(state: PipelineState) -> dict:
-    """Run the review agent and challenge the style selection.
+    """Run the full ArchitectReviewAgent sub-graph.
 
-    The ReviewAgent stress-tests the architecture style selection
-    by checking consistency with the top characteristics, validating
-    veto decisions, and evaluating whether the large-scale scenario
-    would break the selected style.
+    The review agent stress-tests the architecture by:
+    1. Challenging hidden assumptions
+    2. Stress-testing trade-off decisions
+    3. Auditing ADL coverage
+    4. Computing governance score
+
+    It also runs the style selection challenge (deterministic).
     """
     ctx = state["context"]
+
+    # Run deterministic style selection challenge first
     ctx = _challenge_style_selection(ctx)
-    await asyncio.sleep(0.05)
+
+    # Run the full review agent if available
+    if _review_agent is not None:
+        ctx = await _review_agent.run(ctx)
+    else:
+        logger.warning("Review agent not initialized — skipping LLM review")
+
     return {"context": ctx}
 
 

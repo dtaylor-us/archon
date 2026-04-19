@@ -20,6 +20,8 @@ public class ChatService {
     private final ConversationService conversationService;
     private final AgentBridgeService agentBridgeService;
     private final ArchitectureOutputService architectureOutputService;
+    private final GovernanceService governanceService;
+    private final UsageService usageService;
     private final ObjectMapper objectMapper;
 
     public Flux<AgentResponse> streamChat(ChatRequest request, String userId) {
@@ -42,6 +44,7 @@ public class ChatService {
                 new AtomicReference<>(new StringBuilder());
         AtomicReference<String> structuredOutput = new AtomicReference<>();
         AtomicReference<Map<String, Object>> structuredMap = new AtomicReference<>();
+        AtomicReference<Map<String, Object>> completePayload = new AtomicReference<>();
 
         return agentBridgeService.stream(agentRequest)
                 .doOnNext(chunk -> {
@@ -55,11 +58,14 @@ public class ChatService {
                             structuredOutput.set(
                                     objectMapper.writeValueAsString(
                                             chunk.getPayload()));
-                            // Extract structured_output map for architecture persistence
+                            // Capture full COMPLETE payload for token_usage extraction
                             if (chunk.getPayload() instanceof Map<?, ?> payloadMap) {
                                 @SuppressWarnings("unchecked")
+                                Map<String, Object> pm = (Map<String, Object>) payloadMap;
+                                completePayload.set(pm);
+                                @SuppressWarnings("unchecked")
                                 Map<String, Object> so = (Map<String, Object>)
-                                        payloadMap.get("structured_output");
+                                        pm.get("structured_output");
                                 if (so != null) {
                                     structuredMap.set(so);
                                 }
@@ -89,6 +95,29 @@ public class ChatService {
                                         .saveFromStructuredOutput(
                                                 conversation.getId(), so);
                             }
+                            // Persist FMEA risks if present
+                            if (so != null && so.containsKey("fmea_risks")) {
+                                @SuppressWarnings("unchecked")
+                                var fmeaRisks = (java.util.List<Map<String, Object>>)
+                                        so.get("fmea_risks");
+                                if (fmeaRisks != null && !fmeaRisks.isEmpty()) {
+                                    governanceService.saveFmeaRisks(
+                                            conversation.getId(), fmeaRisks);
+                                }
+                            }
+                            // Persist governance report if present
+                            if (so != null && so.containsKey("governance_score")) {
+                                governanceService.saveGovernanceReport(
+                                        conversation.getId(), so);
+                            }
+                            // Persist token usage if the agent reported it
+                            // token_usage lives at the COMPLETE payload level,
+                            // not inside structured_output.
+                            Map<String, Object> cp = completePayload.get();
+                            if (cp != null) {
+                                persistTokenUsage(conversation.getId(), cp);
+                            }
+
                             log.info("Stream complete conversation={}",
                                      conversation.getId());
                         } catch (Exception e) {
@@ -98,5 +127,25 @@ public class ChatService {
                         }
                     });
                 });
+    }
+
+    /**
+     * Extract and persist token_usage from the COMPLETE payload.
+     * Best-effort — never throws.
+     */
+    @SuppressWarnings("unchecked")
+    private void persistTokenUsage(UUID conversationId,
+                                   Map<String, Object> payload) {
+        try {
+            Object tu = payload.get("token_usage");
+            if (tu instanceof Map<?, ?> tokenUsageMap) {
+                usageService.saveFromPayload(
+                        conversationId,
+                        (Map<String, Object>) tokenUsageMap);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to persist token usage for conversation={}",
+                     conversationId, e);
+        }
     }
 }

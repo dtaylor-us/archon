@@ -10,8 +10,7 @@ export const PIPELINE_STAGES = [
   'diagram_generation',
   'trade_off_analysis',
   'adl_generation',
-  'weakness_analysis',
-  'fmea_analysis',
+  'weakness_and_fmea',
   'architecture_review',
 ] as const;
 
@@ -33,6 +32,7 @@ export type EventType =
   | 'STAGE_COMPLETE'
   | 'TOOL_CALL'
   | 'COMPLETE'
+  | 'RE_ITERATE'
   | 'ERROR';
 
 export interface AgentEvent {
@@ -145,6 +145,40 @@ export interface FmeaEntry {
   detection: number;
   rpn: number;
   recommended_action: string;
+}
+
+/* ── Governance: Report ──────────────────────────── */
+
+export interface GovernanceScoreBreakdown {
+  requirement_coverage: number;
+  architectural_soundness: number;
+  risk_mitigation: number;
+  governance_completeness: number;
+  total: number;
+  justification: string;
+}
+
+export interface ImprovementRecommendation {
+  area: string;
+  recommendation: string;
+  priority: 'low' | 'medium' | 'high';
+  requires_reiteration: boolean;
+}
+
+export interface GovernanceReport {
+  id: string;
+  conversationId: string;
+  iteration: number;
+  governanceScore: number;
+  requirementCoverage: number;
+  architecturalSoundness: number;
+  riskMitigation: number;
+  governanceCompleteness: number;
+  justification: string;
+  shouldReiterate: boolean;
+  reviewFindings: Record<string, unknown>;
+  improvementRecommendations: ImprovementRecommendation[];
+  createdAt: string;
 }
 
 /* ── Chat request ────────────────────────────────── */

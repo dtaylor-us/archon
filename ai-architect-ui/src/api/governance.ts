@@ -3,6 +3,7 @@ import type {
   AdlDocument,
   WeaknessReport,
   FmeaEntry,
+  GovernanceReport,
 } from '../types/api';
 import { authFetchJson } from './http';
 
@@ -58,4 +59,21 @@ export async function getFmea(
   token: string,
 ): Promise<FmeaEntry[]> {
   return authFetchJson<FmeaEntry[]>(`${BASE}/${sessionId}/fmea`, token);
+}
+
+export async function getFmeaRisks(
+  sessionId: string,
+  token: string,
+): Promise<FmeaEntry[]> {
+  return authFetchJson<FmeaEntry[]>(`${BASE}/${sessionId}/fmea-risks`, token);
+}
+
+export async function getGovernanceReport(
+  sessionId: string,
+  token: string,
+): Promise<GovernanceReport> {
+  return authFetchJson<GovernanceReport>(
+    `${BASE}/${sessionId}/governance`,
+    token,
+  );
 }

@@ -1,0 +1,12 @@
+apiVersion: v2
+name: ai-architect
+description: Helm chart for the AI Architect Assistant (Archon) platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - ai
+  - architecture
+  - opentelemetry
+maintainers:
+  - name: Archon Team

@@ -15,45 +15,44 @@ from app.pipeline.nodes import (
     trade_off_analysis,
     adl_generation,
     weakness_analysis,
+    weakness_and_fmea,
     fmea_analysis,
     architecture_review,
     init_registry,
+    init_review_agent,
     PipelineState,
 )
 
 
 @pytest.fixture(autouse=True)
 def _setup_registry(mock_llm: AsyncMock):
-    """Set up a mock registry for all tests."""
-    mock_parser = AsyncMock()
-    mock_parser.run = AsyncMock(side_effect=lambda ctx: ctx)
+    """Set up a mock registry for all tests.
 
-    mock_challenge = AsyncMock()
-    mock_challenge.run = AsyncMock(side_effect=lambda ctx: ctx)
+    Each mock tool has both .execute() and .run() — nodes call .execute()
+    which in production delegates to .run() via BaseTool. Here we wire
+    .execute() to pass through to .run() so both can be asserted on.
+    """
+    def _make_tool():
+        tool = AsyncMock()
+        tool.run = AsyncMock(side_effect=lambda ctx: ctx)
 
-    mock_scenario = AsyncMock()
-    mock_scenario.run = AsyncMock(side_effect=lambda ctx: ctx)
+        async def _exec(ctx, _t=tool):
+            return await _t.run(ctx)
 
-    mock_char_reasoner = AsyncMock()
-    mock_char_reasoner.run = AsyncMock(side_effect=lambda ctx: ctx)
+        tool.execute = AsyncMock(side_effect=_exec)
+        return tool
 
-    mock_conflict = AsyncMock()
-    mock_conflict.run = AsyncMock(side_effect=lambda ctx: ctx)
-
-    mock_arch_gen = AsyncMock()
-    mock_arch_gen.run = AsyncMock(side_effect=lambda ctx: ctx)
-
-    mock_diagram = AsyncMock()
-    mock_diagram.run = AsyncMock(side_effect=lambda ctx: ctx)
-
-    mock_trade_off = AsyncMock()
-    mock_trade_off.run = AsyncMock(side_effect=lambda ctx: ctx)
-
-    mock_adl = AsyncMock()
-    mock_adl.run = AsyncMock(side_effect=lambda ctx: ctx)
-
-    mock_weakness = AsyncMock()
-    mock_weakness.run = AsyncMock(side_effect=lambda ctx: ctx)
+    mock_parser = _make_tool()
+    mock_challenge = _make_tool()
+    mock_scenario = _make_tool()
+    mock_char_reasoner = _make_tool()
+    mock_conflict = _make_tool()
+    mock_arch_gen = _make_tool()
+    mock_diagram = _make_tool()
+    mock_trade_off = _make_tool()
+    mock_adl = _make_tool()
+    mock_weakness = _make_tool()
+    mock_fmea = _make_tool()
 
     registry = {
         "requirement_parser": mock_parser,
@@ -66,8 +65,15 @@ def _setup_registry(mock_llm: AsyncMock):
         "trade_off_engine": mock_trade_off,
         "adl_generator": mock_adl,
         "weakness_analyzer": mock_weakness,
+        "fmea_analyzer": mock_fmea,
     }
     init_registry(registry)
+
+    # Also set up a mock review agent
+    mock_review = AsyncMock()
+    mock_review.run = AsyncMock(side_effect=lambda ctx: ctx)
+    init_review_agent(mock_review)
+
     return registry
 
 
@@ -82,7 +88,7 @@ class TestLiveNodes:
 
         await requirement_parsing(state)
 
-        _setup_registry["requirement_parser"].run.assert_awaited_once_with(base_context)
+        _setup_registry["requirement_parser"].execute.assert_awaited_once_with(base_context)
 
     async def test_challenge_node_calls_challenge_engine(
         self, base_context: ArchitectureContext, _setup_registry: dict,
@@ -92,7 +98,7 @@ class TestLiveNodes:
 
         await requirement_challenge(state)
 
-        _setup_registry["challenge_engine"].run.assert_awaited_once_with(base_context)
+        _setup_registry["challenge_engine"].execute.assert_awaited_once_with(base_context)
 
     async def test_scenarios_node_calls_scenario_modeler(
         self, base_context: ArchitectureContext, _setup_registry: dict,
@@ -102,7 +108,7 @@ class TestLiveNodes:
 
         await scenario_modeling(state)
 
-        _setup_registry["scenario_modeler"].run.assert_awaited_once_with(base_context)
+        _setup_registry["scenario_modeler"].execute.assert_awaited_once_with(base_context)
 
     async def test_characteristic_inference_calls_reasoner(
         self, base_context: ArchitectureContext, _setup_registry: dict,
@@ -112,7 +118,7 @@ class TestLiveNodes:
 
         await characteristic_inference(state)
 
-        _setup_registry["characteristic_reasoner"].run.assert_awaited_once_with(base_context)
+        _setup_registry["characteristic_reasoner"].execute.assert_awaited_once_with(base_context)
 
     async def test_conflict_analysis_calls_analyzer(
         self, base_context: ArchitectureContext, _setup_registry: dict,
@@ -122,7 +128,7 @@ class TestLiveNodes:
 
         await conflict_analysis(state)
 
-        _setup_registry["conflict_analyzer"].run.assert_awaited_once_with(base_context)
+        _setup_registry["conflict_analyzer"].execute.assert_awaited_once_with(base_context)
 
     async def test_architecture_generation_calls_generator(
         self, base_context: ArchitectureContext, _setup_registry: dict,
@@ -132,7 +138,7 @@ class TestLiveNodes:
 
         await architecture_generation(state)
 
-        _setup_registry["architecture_generator"].run.assert_awaited_once_with(base_context)
+        _setup_registry["architecture_generator"].execute.assert_awaited_once_with(base_context)
 
     async def test_diagram_generation_calls_diagram_tool(
         self, base_context: ArchitectureContext, _setup_registry: dict,
@@ -142,7 +148,7 @@ class TestLiveNodes:
 
         await diagram_generation(state)
 
-        _setup_registry["diagram_generator"].run.assert_awaited_once_with(base_context)
+        _setup_registry["diagram_generator"].execute.assert_awaited_once_with(base_context)
 
     async def test_trade_off_analysis_calls_trade_off_engine(
         self, base_context: ArchitectureContext, _setup_registry: dict,
@@ -152,7 +158,7 @@ class TestLiveNodes:
 
         await trade_off_analysis(state)
 
-        _setup_registry["trade_off_engine"].run.assert_awaited_once_with(base_context)
+        _setup_registry["trade_off_engine"].execute.assert_awaited_once_with(base_context)
 
     async def test_adl_generation_calls_adl_generator(
         self, base_context: ArchitectureContext, _setup_registry: dict,
@@ -162,7 +168,7 @@ class TestLiveNodes:
 
         await adl_generation(state)
 
-        _setup_registry["adl_generator"].run.assert_awaited_once_with(base_context)
+        _setup_registry["adl_generator"].execute.assert_awaited_once_with(base_context)
 
     async def test_weakness_analysis_calls_weakness_analyzer(
         self, base_context: ArchitectureContext, _setup_registry: dict,
@@ -172,35 +178,39 @@ class TestLiveNodes:
 
         await weakness_analysis(state)
 
-        _setup_registry["weakness_analyzer"].run.assert_awaited_once_with(base_context)
+        _setup_registry["weakness_analyzer"].execute.assert_awaited_once_with(base_context)
 
 
-class TestStubNodes:
-    """Tests for stub pipeline nodes (not yet implemented)."""
+class TestFmeaAndReviewNodes:
+    """Tests for fmea_analysis, weakness_and_fmea, and architecture_review nodes."""
 
-    async def test_stub_nodes_return_context_unchanged(
-        self, base_context: ArchitectureContext,
+    async def test_fmea_analysis_calls_fmea_analyzer(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
     ):
-        """Stub nodes return context unchanged."""
+        """fmea_analysis() calls FMEAPlusTool.run()."""
         state: PipelineState = {"context": base_context}
 
-        for node_fn in [
-            fmea_analysis,
-            architecture_review,
-        ]:
-            result = await node_fn(state)
-            assert result["context"] is base_context
+        await fmea_analysis(state)
 
-    async def test_stub_nodes_do_not_raise(
-        self, base_context: ArchitectureContext,
+        _setup_registry["fmea_analyzer"].execute.assert_awaited_once_with(base_context)
+
+    async def test_weakness_and_fmea_calls_both_tools(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
     ):
-        """Stub nodes do not raise exceptions."""
+        """weakness_and_fmea() calls both weakness_analyzer and fmea_analyzer."""
         state: PipelineState = {"context": base_context}
 
-        for node_fn in [
-            fmea_analysis,
-            architecture_review,
-        ]:
-            # Should complete without raising
-            result = await node_fn(state)
-            assert "context" in result
+        await weakness_and_fmea(state)
+
+        _setup_registry["weakness_analyzer"].execute.assert_awaited_once()
+        _setup_registry["fmea_analyzer"].execute.assert_awaited_once()
+
+    async def test_architecture_review_returns_context(
+        self, base_context: ArchitectureContext,
+    ):
+        """architecture_review() returns context in result dict."""
+        state: PipelineState = {"context": base_context}
+
+        result = await architecture_review(state)
+
+        assert "context" in result

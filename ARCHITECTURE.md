@@ -38,7 +38,10 @@ DEFINE service ai-architect-api {
     GET /api/v1/sessions/{id}/messages,
     GET /api/v1/sessions/{id}/architecture,
     GET /api/v1/sessions/{id}/diagram,
-    GET /api/v1/sessions/{id}/diagram/{type}
+    GET /api/v1/sessions/{id}/diagram/{type},
+    GET /api/v1/sessions/{id}/fmea-risks,
+    GET /api/v1/sessions/{id}/governance,
+    GET /api/v1/conversations/{id}/usage
   ]
   CALLS: [ai-architect-agent via AgentHttpClient]
   ROOT_PACKAGE: com.aiarchitect.api
@@ -228,7 +231,9 @@ DEFINE service ai-architect-ui {
     GET /api/v1/sessions/{id}/diagram,
     GET /api/v1/sessions/{id}/adl,
     GET /api/v1/sessions/{id}/trade-offs,
-    GET /api/v1/sessions/{id}/weaknesses
+    GET /api/v1/sessions/{id}/weaknesses,
+    GET /api/v1/sessions/{id}/fmea-risks,
+    GET /api/v1/sessions/{id}/governance
   ]
   ROOT_DIR: ai-architect-ui/src
 }
@@ -310,10 +315,39 @@ ASSERT ArchonPipeline {
   MUST trigger re-iteration if ReviewAgent sets should_reiterate = true
     AND ArchitectureContext.iteration < 2
     — if iteration >= 2, proceed to COMPLETE regardless of governance score
+    — RE_ITERATE event MUST be emitted before restarting the pipeline
+    — iteration counter MUST be incremented before recursive call
 
   ReviewAgent MUST receive a read-only snapshot of ArchitectureContext
     — ReviewAgent MUST NOT mutate the forward-pass ArchitectureContext
     — ReviewAgent writes to a separate ReviewContext object only
+    — deep copy via ReviewContext._build_review_context()
+
+  FMEA+ and WeaknessAnalyzer MUST execute in parallel (asyncio.gather)
+    — merged into a single pipeline stage: weakness_and_fmea
+    — both tools write to separate ArchitectureContext fields (no conflict)
+}
+
+DEFINE sub-graph ReviewAgent {
+  ENTRY: ArchitectReviewAgent.run(context)
+  STATE_OBJECT: ReviewContext (deep copy of ArchitectureContext fields)
+  ISOLATION: ReviewContext is never a reference to the live ArchitectureContext
+
+  NODES: [
+    1  assumption_challenger  — challenges 5-10 implicit assumptions in the design
+    2  trade_off_stress       — stress-tests 2-6 trade-off decisions
+    3  adl_audit              — audits ADL for 3-8 coverage issues
+    4  governance_scorer      — scores across 4 dimensions (25 pts each, total 100)
+  ]
+
+  OUTPUTS_TO_CONTEXT: [
+    review_findings          — combined findings from nodes 1-3
+    governance_score         — integer 0-100
+    governance_score_breakdown — {requirement_coverage, architectural_soundness, risk_mitigation, governance_completeness}
+    improvement_recommendations — ranked list of actionable improvements
+    should_reiterate         — boolean (true if score < threshold AND iteration < max)
+    review_constraints       — high-priority constraints injected into re-iteration Stage 2
+  ]
 }
 
 
@@ -322,9 +356,37 @@ ASSERT ArchonPipeline {
 ## DATA LAYER
 
 DEFINE database PostgreSQL {
-  OWNS: [conversations table, messages table]
+  OWNS: [conversations table, messages table, fmea_risks table, governance_reports table]
   USED_BY: [ai-architect-api only]
   SCHEMA_MANAGEMENT: Flyway
+
+  TABLE fmea_risks {
+    — stores FMEA+ failure modes per conversation
+    — columns: id (UUID PK), conversation_id (FK), risk_id, failure_mode, component,
+      cause, effect, severity (1-10), occurrence (1-10), detection (1-10),
+      rpn (computed S×O×D), current_controls, recommended_action,
+      linked_weakness, linked_characteristic, created_at
+    — ordered by rpn DESC for risk-priority queries
+  }
+
+  TABLE governance_reports {
+    — stores governance scoring per iteration per conversation
+    — columns: id (UUID PK), conversation_id (FK), iteration, governance_score (0-100),
+      requirement_coverage (0-25), architectural_soundness (0-25),
+      risk_mitigation (0-25), governance_completeness (0-25),
+      justification, should_reiterate, review_findings (JSONB),
+      improvement_recommendations (JSONB), created_at
+    — one row per iteration (max 2 per conversation)
+  }
+
+  TABLE token_usage {
+    — stores per-stage LLM token consumption for cost tracking
+    — columns: id (UUID PK), conversation_id (FK), stage (TEXT),
+      model (TEXT), input_tokens (INT), output_tokens (INT),
+      total_tokens (INT), estimated_cost (NUMERIC 12,6), created_at
+    — indexed on conversation_id and created_at
+    — one row per stage per pipeline run
+  }
 }
 
 DEFINE database Qdrant {
@@ -361,10 +423,101 @@ ASSERT data-layer {
   MUST store all structured agent outputs (ADL, trade-offs, weaknesses) as JSONB
     in messages.structured_output
     — architecture_outputs table is the sole exception (Phase 3+ for query-friendly access)
-    — do not create additional separate tables for each output type
+    — fmea_risks and governance_reports tables are exceptions (Phase 5 governance pipeline)
+    — do not create additional separate tables for each output type beyond these
 
   MUST use UUID primary keys on all tables
     — no integer or serial primary keys
+}
+
+
+---
+
+## PRODUCTION OPERATIONS
+
+DEFINE infrastructure Production {
+  PLATFORM: Azure Kubernetes Service (AKS)
+  CHART: helm/ai-architect (Helm v3)
+  OBSERVABILITY: OpenTelemetry → Jaeger (traces), Prometheus (metrics)
+  SECRETS: Azure Key Vault via CSI SecretProviderClass
+  INGRESS: NGINX Ingress Controller with TLS via cert-manager
+}
+
+ASSERT observability-stack {
+  MUST export distributed traces via OpenTelemetry Protocol (OTLP/gRPC)
+    — Python agent uses opentelemetry-sdk + OTLPSpanExporter
+    — Spring Boot API uses Micrometer OTel bridge for automatic instrumentation
+
+  MUST propagate W3C TraceContext headers across service boundaries
+    — AgentHttpClient MUST carry traceparent / tracestate headers to agent
+    — correlation of api → agent spans is required for end-to-end trace views
+
+  MUST emit structured JSON logs in production
+    — Python agent uses structlog with JSON renderer
+    — Spring Boot API includes traceId, spanId, conversationId in log pattern
+
+  MUST record per-tool OpenTelemetry spans
+    — span name pattern: tool.{tool_name}
+    — attributes: conversation_id, stage_name, llm.input_tokens, llm.output_tokens
+
+  MUST track pipeline-level metrics
+    — active_pipeline_runs (UpDownCounter)
+    — llm_tokens_total (Counter, labels: stage, model, direction)
+    — stage_duration_seconds (Histogram, label: stage)
+}
+
+ASSERT resilience {
+  MUST protect AgentHttpClient with a circuit breaker (Resilience4j)
+    — sliding-window size, failure-rate threshold, and wait duration are configurable
+    — open circuit MUST return HTTP 503 to the API caller
+
+  MUST protect AgentHttpClient with a rate limiter (Resilience4j)
+    — limit-for-period, refresh period, and timeout are configurable
+    — exceeded rate MUST return HTTP 429 to the API caller
+
+  MUST handle CircuitBreaker and RateLimiter exceptions in GlobalExceptionHandler
+    — CallNotPermittedException → 503 Service Unavailable
+    — RequestNotPermitted → 429 Too Many Requests
+}
+
+ASSERT cost-tracking {
+  MUST track LLM token usage per stage per pipeline run
+    — recorded via contextvars-based PipelineTokenUsage tracker in agent
+    — attached to the COMPLETE event payload as token_usage dict
+
+  MUST persist token usage to the token_usage table via the API
+    — ChatService extracts token_usage from COMPLETE payload and delegates to UsageService
+    — one row per stage, per model, per pipeline run
+
+  MUST expose per-conversation usage summary via REST
+    — GET /api/v1/conversations/{id}/usage
+    — response includes total input/output/tokens, estimated cost, and per-stage breakdown
+
+  MUST estimate cost using configurable per-model pricing
+    — default rates for gpt-4o and gpt-4o-mini are provided
+    — unknown models default to zero cost (safe fallback)
+}
+
+ASSERT deployment {
+  MUST deploy to AKS via Helm chart in helm/ai-architect/
+    — values.yaml MUST parameterise all images, replica counts, resource limits,
+      and secret references — no hardcoded cluster-specific values in templates
+
+  MUST use HorizontalPodAutoscaler for agent and api deployments
+    — conditionally enabled via .Values.{service}.hpa.enabled
+    — CPU-based scaling with configurable min/max replicas and target utilization
+
+  MUST restrict database network access via NetworkPolicy
+    — PostgreSQL accepts ingress only from agent and api pods
+    — Qdrant accepts ingress only from agent pods
+
+  MUST source production secrets from Azure Key Vault
+    — SecretProviderClass creates a Kubernetes secret (archon-secrets)
+    — workload identity (managed identity) is used — no service principal credentials stored
+
+  MUST use StatefulSets with PersistentVolumeClaims for postgres and qdrant
+    — data persistence survives pod restarts
+    — storageClass is configurable (default: managed-premium)
 }
 
 
@@ -428,7 +581,7 @@ DEFINE contract client-to-api {
 ASSERT communication-contract {
   MUST NOT change the AgentResponseChunk event type enum values
     — EventType values (CHUNK, STAGE_START, STAGE_COMPLETE, TOOL_CALL,
-      COMPLETE, ERROR) are part of the client contract
+      COMPLETE, RE_ITERATE, ERROR) are part of the client contract
     — adding new values is allowed, removing or renaming existing values is not
 
   MUST NOT change the /agent/stream request field names without a migration plan

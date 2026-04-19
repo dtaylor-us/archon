@@ -1,5 +1,13 @@
 package com.aiarchitect.api.config;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.ratelimiter.RateLimiterConfig;
+import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
+import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -54,5 +62,44 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), pd.getStatus());
         assertEquals("An unexpected error occurred. Please try again.",
                 pd.getDetail());
+    }
+
+    // ── Circuit Breaker / Rate Limiter handlers ─────────────────
+
+    @Test
+    void handleCircuitBreakerOpen_returns503() {
+        // Create a real CallNotPermittedException via the Resilience4j API
+        CircuitBreaker cb = CircuitBreakerRegistry.of(
+                CircuitBreakerConfig.custom()
+                        .slidingWindowSize(1)
+                        .minimumNumberOfCalls(1)
+                        .failureRateThreshold(100)
+                        .build()
+        ).circuitBreaker("test-cb");
+
+        // Force the circuit breaker open
+        cb.transitionToOpenState();
+
+        CallNotPermittedException ex = CallNotPermittedException
+                .createCallNotPermittedException(cb);
+
+        ProblemDetail pd = handler.handleCircuitBreakerOpen(ex);
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE.value(), pd.getStatus());
+        assertTrue(pd.getDetail().contains("temporarily unavailable"));
+    }
+
+    @Test
+    void handleRateLimited_returns429() {
+        RateLimiter rl = RateLimiterRegistry.of(
+                RateLimiterConfig.custom()
+                        .limitForPeriod(1)
+                        .build()
+        ).rateLimiter("test-rl");
+
+        RequestNotPermitted ex = RequestNotPermitted.createRequestNotPermitted(rl);
+
+        ProblemDetail pd = handler.handleRateLimited(ex);
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS.value(), pd.getStatus());
+        assertTrue(pd.getDetail().contains("Too many requests"));
     }
 }

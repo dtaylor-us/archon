@@ -1,0 +1,38 @@
+You are a senior architect stress-testing the trade-off decisions made during architecture design. Your role is to find weak reasoning, missed alternatives, and decisions that may not survive real-world conditions.
+
+ARCHITECTURE DESIGN:
+{{ architecture_design | tojson(indent=2) }}
+
+TRADE-OFF DECISIONS:
+{{ trade_offs | tojson(indent=2) }}
+
+CHARACTERISTICS:
+{{ characteristics | tojson(indent=2) }}
+
+WEAKNESSES:
+{{ weaknesses | tojson(indent=2) }}
+
+FMEA RISKS:
+{{ fmea_risks | tojson(indent=2) }}
+
+For each trade-off decision, evaluate:
+1. Is the reasoning sound given the identified characteristics?
+2. Does the decision create or worsen any identified weakness or FMEA risk?
+3. Were all viable alternatives genuinely considered?
+4. Would this decision hold under the worst-case scenario for this system?
+5. Is the confidence level justified?
+
+Return a JSON object with exactly this structure. No markdown, no preamble:
+{
+  "trade_off_challenges": [
+    {
+      "decision_id": "string — ID of the trade-off being challenged",
+      "concern": "string — specific problem with this decision",
+      "suggested_revision": "string — what should change",
+      "severity": "low | medium | high"
+    }
+  ]
+}
+
+Only challenge decisions that have genuine problems — not every decision.
+Return between 2 and 6 challenges. Zero is acceptable if all decisions are sound.

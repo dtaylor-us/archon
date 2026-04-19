@@ -24,6 +24,7 @@ class RequirementChallengeEngineTool(BaseTool):
             "requirement_challenge",
             raw_requirements=context.raw_requirements,
             parsed_entities=context.parsed_entities,
+            review_constraints=context.review_constraints,
         )
 
         raw = await self.llm_client.complete(prompt, response_format="json")

@@ -1,5 +1,7 @@
 package com.aiarchitect.api.config;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -95,6 +97,34 @@ public class GlobalExceptionHandler {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, ex.getMessage());
         pd.setTitle("Bad Request");
+        return pd;
+    }
+
+    /**
+     * Handles circuit breaker open — agent is temporarily unavailable.
+     */
+    @ExceptionHandler(CallNotPermittedException.class)
+    public ProblemDetail handleCircuitBreakerOpen(CallNotPermittedException ex) {
+        log.warn("Circuit breaker rejected request: {}", ex.getMessage());
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "AI agent temporarily unavailable. Please retry shortly.");
+        pd.setTitle("Service Unavailable");
+        pd.setType(URI.create("urn:archon:circuit-breaker-open"));
+        return pd;
+    }
+
+    /**
+     * Handles rate limiter rejection — too many concurrent requests.
+     */
+    @ExceptionHandler(RequestNotPermitted.class)
+    public ProblemDetail handleRateLimited(RequestNotPermitted ex) {
+        log.warn("Rate limiter rejected request: {}", ex.getMessage());
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "Too many requests. Please wait before retrying.");
+        pd.setTitle("Too Many Requests");
+        pd.setType(URI.create("urn:archon:rate-limited"));
         return pd;
     }
 

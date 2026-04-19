@@ -1,0 +1,17 @@
+Thank you for installing {{ .Chart.Name }} {{ .Chart.Version }}.
+
+Services deployed:
+  - Agent (Python):  {{ .Values.agent.replicaCount }} replica(s)
+  - API (Java):      {{ .Values.api.replicaCount }} replica(s)
+  - UI (React):      {{ .Values.ui.replicaCount }} replica(s)
+
+{{- if .Values.ingress.enabled }}
+The application is accessible at:
+  https://{{ .Values.ingress.host }}
+{{- end }}
+
+To check pod status:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+To view token usage for a conversation:
+  curl https://{{ .Values.ingress.host }}/api/v1/conversations/<id>/usage

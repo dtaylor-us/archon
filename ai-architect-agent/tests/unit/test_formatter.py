@@ -48,19 +48,16 @@ class TestFormatResponse:
         assert "### Clarifying Questions" in result
         assert "What is target RPS?" in result
 
-    def test_scenarios_with_named_items(self):
+    def test_scenarios_are_omitted(self):
+        """Scenarios are no longer rendered in the output."""
         ctx = ArchitectureContext(
             raw_requirements="test",
             scenarios=[
                 {"name": "Happy Path", "stimulus": "User pays", "response": "OK"},
-                {"name": "Failure", "stimulus": "Payment fails"},
             ],
         )
         result = format_response(ctx)
-        assert "## Scenarios" in result
-        assert "### Happy Path" in result
-        assert "### Failure" in result
-        assert "User pays" in result
+        assert "## Scenarios" not in result
 
     def test_architecture_design_nested(self):
         ctx = ArchitectureContext(

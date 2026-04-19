@@ -2,14 +2,27 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
+import structlog
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app.api.agent import router as agent_router
 from app.llm.client import LLMClient
 from app.memory.store import MemoryStore
-from app.pipeline import compile_pipeline, init_registry
+from app.observability import setup_tracing, setup_metrics
+from app.pipeline import compile_pipeline, init_registry, init_review_agent
+from app.review.agent import ArchitectReviewAgent
 from app.tools.registry import build_registry
+
+# Configure structlog for JSON output with trace context injection
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer(),
+    ]
+)
 
 logging.basicConfig(
     level=getattr(logging, os.getenv("LOG_LEVEL", "INFO")),
@@ -21,6 +34,16 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Archon Agent starting up")
+
+    # Observability must initialise first — before any other component
+    setup_tracing()
+    setup_metrics()
+
+    # Instrument FastAPI and httpx automatically
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+    FastAPIInstrumentor.instrument_app(app)
+    HTTPXClientInstrumentor().instrument()
 
     # Initialise shared LLM client
     llm_client = LLMClient()
@@ -38,6 +61,12 @@ async def lifespan(app: FastAPI):
     app.state.tool_registry = registry
     init_registry(registry)
     logger.info("Tool registry initialised with %d tools", len(registry))
+
+    # Build and wire the architect review agent
+    review_agent = ArchitectReviewAgent(llm_client)
+    app.state.review_agent = review_agent
+    init_review_agent(review_agent)
+    logger.info("ArchitectReviewAgent initialised")
 
     # Compile the LangGraph pipeline graph
     compile_pipeline()

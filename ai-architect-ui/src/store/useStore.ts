@@ -143,6 +143,13 @@ export const useStore = create<AppStore>((set, get) => ({
         }));
         break;
 
+      case 'RE_ITERATE':
+        // Reset stages to pending for a new iteration pass
+        set({
+          stages: initialStages(),
+        });
+        break;
+
       case 'ERROR':
         set({
           isStreaming: false,

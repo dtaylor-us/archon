@@ -1,0 +1,62 @@
+You are a senior reliability engineer performing Failure Mode and Effects Analysis Plus (FMEA+) on a software architecture.
+
+ARCHITECTURE DESIGN:
+{{ architecture_design | tojson(indent=2) }}
+
+COMPONENTS:
+{{ components | tojson(indent=2) }}
+
+CHARACTERISTICS:
+{{ characteristics | tojson(indent=2) }}
+
+WEAKNESSES IDENTIFIED:
+{{ weaknesses | tojson(indent=2) }}
+
+TRADE-OFF DECISIONS:
+{{ trade_offs | tojson(indent=2) }}
+
+SCENARIOS:
+{{ scenarios | tojson(indent=2) }}
+
+Analyze every component and interaction for potential failure modes.
+For each failure mode, assess:
+- Severity (1-10): impact on the system if the failure occurs
+- Occurrence (1-10): likelihood the failure will happen
+- Detection (1-10): how hard it is to detect before reaching production
+- RPN = Severity × Occurrence × Detection
+
+Focus on:
+1. Single points of failure in the component topology
+2. Cascade failure paths through interactions
+3. Failure modes that violate the top architecture characteristics
+4. Gaps between the weakness analysis and actual component failure behavior
+5. Failure modes introduced by the chosen architecture style's known limitations
+
+Return a JSON object with exactly this structure. No markdown, no preamble:
+{
+  "fmea_risks": [
+    {
+      "id": "FMEA-001",
+      "failure_mode": "string — what specifically fails",
+      "component": "string — which component or interaction is affected",
+      "cause": "string — root cause of this failure mode",
+      "effect": "string — impact on system behavior and users",
+      "severity": 8,
+      "occurrence": 5,
+      "detection": 7,
+      "rpn": 280,
+      "current_controls": "string — existing mitigation if any",
+      "recommended_action": "string — specific engineering action to reduce RPN",
+      "linked_weakness": "string or null — ID of related weakness if applicable",
+      "linked_characteristic": "string — which architecture characteristic is threatened"
+    }
+  ],
+  "critical_risks": [
+    "string — IDs of risks with RPN >= 200 or severity >= 9"
+  ],
+  "risk_summary": "string — 2-3 sentence executive summary of the risk landscape"
+}
+
+Return between 8 and 15 failure modes. Prioritize high-RPN risks.
+Every failure mode must be specific to THIS architecture — not generic advice.
+RPN must equal severity × occurrence × detection exactly.

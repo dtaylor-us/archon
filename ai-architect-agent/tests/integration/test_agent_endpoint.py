@@ -17,48 +17,33 @@ VALID_HEADERS = {"x-internal-secret": INTERNAL_SECRET}
 
 @pytest.fixture
 def mock_registry():
-    """Build a mock tool registry that returns contexts unchanged."""
-    mock_parser = AsyncMock()
-    mock_parser.run = AsyncMock(side_effect=lambda ctx: ctx)
+    """Build a mock tool registry that returns contexts unchanged.
 
-    mock_challenge = AsyncMock()
-    mock_challenge.run = AsyncMock(side_effect=lambda ctx: ctx)
+    Each mock wires .execute() → .run() to match the production
+    BaseTool.execute() delegation pattern used by pipeline nodes.
+    """
+    def _make_tool():
+        tool = AsyncMock()
+        tool.run = AsyncMock(side_effect=lambda ctx: ctx)
 
-    mock_scenario = AsyncMock()
-    mock_scenario.run = AsyncMock(side_effect=lambda ctx: ctx)
+        async def _exec(ctx, _t=tool):
+            return await _t.run(ctx)
 
-    mock_char_reasoner = AsyncMock()
-    mock_char_reasoner.run = AsyncMock(side_effect=lambda ctx: ctx)
-
-    mock_conflict = AsyncMock()
-    mock_conflict.run = AsyncMock(side_effect=lambda ctx: ctx)
-
-    mock_arch_gen = AsyncMock()
-    mock_arch_gen.run = AsyncMock(side_effect=lambda ctx: ctx)
-
-    mock_diagram_gen = AsyncMock()
-    mock_diagram_gen.run = AsyncMock(side_effect=lambda ctx: ctx)
-
-    mock_trade_off = AsyncMock()
-    mock_trade_off.run = AsyncMock(side_effect=lambda ctx: ctx)
-
-    mock_adl = AsyncMock()
-    mock_adl.run = AsyncMock(side_effect=lambda ctx: ctx)
-
-    mock_weakness = AsyncMock()
-    mock_weakness.run = AsyncMock(side_effect=lambda ctx: ctx)
+        tool.execute = AsyncMock(side_effect=_exec)
+        return tool
 
     return {
-        "requirement_parser": mock_parser,
-        "challenge_engine": mock_challenge,
-        "scenario_modeler": mock_scenario,
-        "characteristic_reasoner": mock_char_reasoner,
-        "conflict_analyzer": mock_conflict,
-        "architecture_generator": mock_arch_gen,
-        "diagram_generator": mock_diagram_gen,
-        "trade_off_engine": mock_trade_off,
-        "adl_generator": mock_adl,
-        "weakness_analyzer": mock_weakness,
+        "requirement_parser": _make_tool(),
+        "challenge_engine": _make_tool(),
+        "scenario_modeler": _make_tool(),
+        "characteristic_reasoner": _make_tool(),
+        "conflict_analyzer": _make_tool(),
+        "architecture_generator": _make_tool(),
+        "diagram_generator": _make_tool(),
+        "trade_off_engine": _make_tool(),
+        "adl_generator": _make_tool(),
+        "weakness_analyzer": _make_tool(),
+        "fmea_analyzer": _make_tool(),
     }
 
 
@@ -67,10 +52,16 @@ async def test_app(mock_llm, mock_registry):
     """Create a test FastAPI app with mocked LLM and registry."""
     with patch.dict(os.environ, {"INTERNAL_SECRET": INTERNAL_SECRET}):
         # We need to patch the pipeline compile and registry init
-        from app.pipeline.nodes import init_registry
+        from app.pipeline.nodes import init_registry, init_review_agent
         from app.pipeline.graph import compile_pipeline
 
         init_registry(mock_registry)
+
+        # Create a mock review agent that returns context unchanged
+        mock_review_agent = MagicMock()
+        mock_review_agent.run = AsyncMock(side_effect=lambda ctx: ctx)
+        init_review_agent(mock_review_agent)
+
         compile_pipeline()
 
         from app.main import app
@@ -148,8 +139,8 @@ class TestAgentStreamEndpoint:
             json.loads(line) for line in response.text.strip().split("\n") if line.strip()
         ]
         stage_completes = [e for e in lines if e.get("type") == "STAGE_COMPLETE"]
-        # Should have at least one STAGE_COMPLETE per pipeline stage
-        assert len(stage_completes) >= 12
+        # Should have at least one STAGE_COMPLETE per pipeline stage (11 stages)
+        assert len(stage_completes) >= 11
 
     async def test_stream_ends_with_complete_event(self, client: AsyncClient):
         """Response stream ends with COMPLETE event."""

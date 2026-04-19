@@ -27,10 +27,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   tracing:
     sampling:
-      probability: 1.0
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+    propagation:
+      type: w3c
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}/v1/traces
+
+logging:
+  pattern:
+    console: "%d{ISO8601} [%thread] %-5level %logger{36} [traceId=%X{traceId:-} spanId=%X{spanId:-} conversationId=%X{conversationId:-}] - %msg%n"
 
 server:
   port: 8080

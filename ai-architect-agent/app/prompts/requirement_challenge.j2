@@ -43,3 +43,13 @@ Return a JSON object with exactly this structure. No markdown, no preamble:
 Return between 5 and 8 clarifying questions. More than 8 is noise.
 Every missing requirement, ambiguity, and assumption must be specific
 to the requirements provided — not generic architecture advice.
+{% if review_constraints %}
+
+REVIEW AGENT CONSTRAINTS FROM PREVIOUS ITERATION:
+The architecture review agent identified the following issues that must
+be addressed in this iteration. Factor these constraints into your analysis
+and ensure your challenges cover these areas:
+{% for constraint in review_constraints %}
+- {{ constraint }}
+{% endfor %}
+{% endif %}

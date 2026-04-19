@@ -69,6 +69,8 @@ def test_agent_domain_structure(evaluable):
         "app.models",
         "app.prompts",
         "app.api",
+        "app.review",
+        "app.observability",
     ]
     # Verify that top-level sub-packages of app are only the allowed domains
     app_dir = Path(_APP_PATH)
