@@ -13,9 +13,14 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Flux;
 
+import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -111,5 +116,23 @@ class ChatControllerIntegrationTest {
         List<Message> messages = messageRepo.findAll();
         assertTrue(messages.size() >= 1,
                 "At least the user message should be persisted");
+    }
+
+    @Test
+    void streamChat_returns503WhenAgentUnavailable() {
+        WebClientRequestException agentDown = new WebClientRequestException(
+                new IOException("agent down"),
+                HttpMethod.POST,
+                URI.create("http://agent:8001/agent/stream"),
+                HttpHeaders.EMPTY);
+        when(agentHttpClient.stream(any())).thenReturn(Flux.error(agentDown));
+
+        webTestClient.post().uri("/api/v1/chat/stream")
+                .header("Authorization", "Bearer " + validToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"message\":\"hello\"}")
+                .exchange()
+                .expectStatus().isEqualTo(503)
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
 }

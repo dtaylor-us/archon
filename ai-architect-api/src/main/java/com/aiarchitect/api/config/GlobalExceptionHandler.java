@@ -2,10 +2,12 @@ package com.aiarchitect.api.config;
 
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
+import com.aiarchitect.api.exception.AgentCommunicationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -125,6 +127,34 @@ public class GlobalExceptionHandler {
                 "Too many requests. Please wait before retrying.");
         pd.setTitle("Too Many Requests");
         pd.setType(URI.create("urn:archon:rate-limited"));
+        return pd;
+    }
+
+    /**
+     * Handles agent connectivity failures.
+     */
+    @ExceptionHandler(WebClientRequestException.class)
+    public ProblemDetail handleWebClientRequest(WebClientRequestException ex) {
+        log.warn("Downstream request failed: {}", ex.getMessage());
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "AI agent unavailable. Please retry shortly.");
+        pd.setTitle("Service Unavailable");
+        pd.setType(URI.create("urn:archon:agent-unavailable"));
+        return pd;
+    }
+
+    /**
+     * Handles wrapped agent communication failures.
+     */
+    @ExceptionHandler(AgentCommunicationException.class)
+    public ProblemDetail handleAgentCommunication(AgentCommunicationException ex) {
+        log.warn("Agent communication failed: {}", ex.getMessage(), ex);
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "AI agent unavailable. Please retry shortly.");
+        pd.setTitle("Service Unavailable");
+        pd.setType(URI.create("urn:archon:agent-unavailable"));
         return pd;
     }
 
