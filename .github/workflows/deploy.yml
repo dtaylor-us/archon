@@ -12,6 +12,10 @@ on:
 
 # Only one deployment can run at a time.
 # A newer push to main will cancel an in-progress deployment.
+permissions:
+  id-token: write   # required for OIDC login
+  contents: read
+
 concurrency:
   group: deploy-production
   cancel-in-progress: true
@@ -30,7 +34,9 @@ jobs:
 
       - uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: ACR login
         run: az acr login --name ${{ secrets.ACR_NAME }}
@@ -83,7 +89,9 @@ jobs:
 
       - uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Select subscription
         run: |
