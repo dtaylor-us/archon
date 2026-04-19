@@ -1,0 +1,125 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# env-restart-app.yml
+#
+# Restarts application pods without touching the underlying infrastructure.
+# Use this after:
+#   - A deployment issue leaves pods in a bad state
+#   - A secret is updated in Key Vault and pods need to reload it
+#   - The cluster starts and pods fail to connect to the database
+#
+# Does NOT start or stop AKS or PostgreSQL — use env-start / env-stop for that.
+# Will fail fast with a clear message if the AKS cluster is not Running.
+#
+# Required GitHub Secrets:
+#   AZURE_CREDENTIALS       Full service principal JSON blob (from az ad sp create-for-rbac)
+#   AZURE_RESOURCE_GROUP    Resource group name e.g. rg-axiom-dev
+#   AKS_CLUSTER_NAME        AKS cluster name e.g. aks-axiom-dev
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: "Env — Restart App"
+
+on:
+  # Manual trigger only — pod restarts should always be a deliberate action.
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Which service to restart"
+        type: choice
+        options:
+          - all
+          - api
+          - agent
+          - ui
+        default: all
+        required: true
+
+# No concurrency group — pod restarts are independent of the infrastructure
+# lifecycle and should not be blocked by start/stop workflows.
+
+jobs:
+
+  restart:
+    name: "Restart ${{ inputs.service }} pod(s)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Authenticate to Azure"
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: "Get AKS credentials"
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
+            --overwrite-existing
+
+      # Guard step — fail immediately with a clear message rather than letting
+      # kubectl calls produce confusing errors against a stopped cluster.
+      - name: "Verify AKS cluster is Running before proceeding"
+        run: |
+          STATE=$(az aks show \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
+            --query powerState.code \
+            --output tsv)
+          if [ "$STATE" != "Running" ]; then
+            echo "Error: AKS cluster is not running (state: $STATE)"
+            echo "Run the env-start workflow first, then retry this workflow."
+            exit 1
+          fi
+          echo "AKS cluster is running"
+
+      - name: "Restart API"
+        if: inputs.service == 'all' || inputs.service == 'api'
+        run: |
+          echo "Restarting ai-architect-api..."
+          kubectl rollout restart deployment/ai-architect-api \
+            --namespace ai-architect
+          kubectl rollout status deployment/ai-architect-api \
+            --namespace ai-architect \
+            --timeout=300s
+          echo "API restart complete"
+
+      - name: "Restart agent"
+        if: inputs.service == 'all' || inputs.service == 'agent'
+        run: |
+          echo "Restarting ai-architect-agent..."
+          kubectl rollout restart deployment/ai-architect-agent \
+            --namespace ai-architect
+          kubectl rollout status deployment/ai-architect-agent \
+            --namespace ai-architect \
+            --timeout=300s
+          echo "Agent restart complete"
+
+      - name: "Restart UI"
+        if: inputs.service == 'all' || inputs.service == 'ui'
+        run: |
+          echo "Restarting ai-architect-ui..."
+          kubectl rollout restart deployment/ai-architect-ui \
+            --namespace ai-architect
+          kubectl rollout status deployment/ai-architect-ui \
+            --namespace ai-architect \
+            --timeout=300s
+          echo "UI restart complete"
+
+      # if: always() so the pod list is printed even when a restart step fails.
+      # This gives immediate visibility into what went wrong.
+      - name: "Print final pod status"
+        if: always()
+        run: |
+          kubectl get pods --namespace ai-architect --output wide
+
+      - name: "Print application URL"
+        run: |
+          IP=$(kubectl get ingress \
+            --namespace ai-architect \
+            --output jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}' \
+            2>/dev/null)
+          if [ -n "$IP" ]; then
+            echo "Application URL: http://aiarchitect.$IP.nip.io"
+          else
+            echo "Could not determine URL."
+            echo "Check: kubectl get ingress -n ai-architect"
+          fi

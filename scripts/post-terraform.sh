@@ -93,17 +93,21 @@ success "cert-manager installed."
 # ─── Step 5: Install Azure Key Vault CSI driver ───────────────────────────────
 header "Step 5 — Installing Azure Key Vault CSI driver"
 
-helm repo add csi-secrets-store-provider-azure \
-  https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
-helm repo update
-
-helm upgrade --install csi-secrets-store-provider-azure \
-  csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
-  --namespace kube-system \
-  --wait \
-  --timeout 5m
-
-success "Azure Key Vault CSI driver installed."
+# The AKS cluster was provisioned with the key_vault_secrets_provider add-on,
+# which installs the CSI driver natively. A separate Helm install would conflict.
+if kubectl get csidriver secrets-store.csi.k8s.io &>/dev/null; then
+  success "Azure Key Vault CSI driver already present (AKS add-on)."
+else
+  helm repo add csi-secrets-store-provider-azure \
+    https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
+  helm repo update
+  helm upgrade --install csi-secrets-store-provider-azure \
+    csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
+    --namespace kube-system \
+    --wait \
+    --timeout 5m
+  success "Azure Key Vault CSI driver installed via Helm."
+fi
 
 # ─── Step 6: Create application namespace ────────────────────────────────────
 header "Step 6 — Creating application namespace"

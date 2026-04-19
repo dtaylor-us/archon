@@ -35,9 +35,10 @@ resource "azurerm_kubernetes_cluster" "main" {
     max_count           = var.max_node_count
     node_count          = var.node_count
 
-    # Ephemeral OS disks use the VM's local cache/temp storage.
-    # Faster boot, lower cost, and no OS disk charges.
-    os_disk_type = "Ephemeral"
+    # Managed OS disks are used here because Ephemeral OS requires a VM cache
+    # larger than the OS disk (128 GB). D2s_v3 cache is only 53 GB, so Ephemeral
+    # is not supported on this size. Use Ephemeral only with D4s_v3 or larger.
+    os_disk_type = "Managed"
   }
 
   # Azure CNI provides pod-level network policies and direct VNet integration.

@@ -23,3 +23,9 @@ variable "sku" {
   default     = "Basic"
   description = "ACR SKU tier. Basic is sufficient for dev. Standard or Premium for production geo-replication."
 }
+
+variable "suffix" {
+  type        = string
+  default     = ""
+  description = "Short random suffix appended to the registry name to ensure global uniqueness."
+}

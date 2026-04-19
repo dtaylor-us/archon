@@ -44,3 +44,9 @@ variable "geo_redundant_backup" {
   default     = false
   description = "Enable geo-redundant backups. Doubles storage cost but provides cross-region recovery. Recommended for production."
 }
+
+variable "suffix" {
+  type        = string
+  default     = ""
+  description = "Short random suffix appended to the server name to ensure global uniqueness."
+}

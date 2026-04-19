@@ -45,6 +45,12 @@ variable "purge_protection" {
   description = "Enable purge protection on the Key Vault. Set to true for production — prevents permanent deletion for the retention period."
 }
 
+variable "suffix" {
+  type        = string
+  default     = ""
+  description = "Short random suffix appended to the Key Vault name to ensure global uniqueness."
+}
+
 variable "db_password" {
   type        = string
   sensitive   = true

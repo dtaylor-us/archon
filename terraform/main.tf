@@ -17,6 +17,15 @@ resource "azurerm_resource_group" "main" {
 
 # ─── Random Secrets ───────────────────────────────────────────────────────────
 
+# Short suffix appended to globally-unique resource names (ACR, PostgreSQL, Key Vault)
+# to avoid conflicts with names already taken in Azure's global namespace.
+# Stored in state — does not change on re-apply.
+resource "random_string" "suffix" {
+  length  = 4
+  upper   = false
+  special = false
+}
+
 # 64-character alphanumeric JWT signing secret.
 # Regenerates only when Terraform state is lost — not on every apply.
 resource "random_password" "jwt_secret" {
@@ -39,6 +48,7 @@ module "acr" {
   location            = azurerm_resource_group.main.location
   project             = var.project
   environment         = var.environment
+  suffix              = random_string.suffix.result
 }
 
 module "aks" {
@@ -69,6 +79,7 @@ module "database" {
   admin_username      = var.db_admin_username
   sku_name            = var.db_sku
   storage_mb          = var.db_storage_mb
+  suffix              = random_string.suffix.result
 }
 
 module "keyvault" {
@@ -78,6 +89,7 @@ module "keyvault" {
   location            = azurerm_resource_group.main.location
   project             = var.project
   environment         = var.environment
+  suffix              = random_string.suffix.result
 
   tenant_id                      = data.azurerm_client_config.current.tenant_id
   deployer_object_id             = var.deployer_object_id

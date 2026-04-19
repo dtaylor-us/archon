@@ -7,7 +7,7 @@ resource "random_password" "db_admin" {
 }
 
 resource "azurerm_postgresql_flexible_server" "main" {
-  name                = "psql-${var.project}-${var.environment}"
+  name                = "psql-${var.project}-${var.environment}-${var.suffix}"
   resource_group_name = var.resource_group_name
   location            = var.location
   version             = "16"
@@ -51,12 +51,6 @@ resource "azurerm_postgresql_flexible_server_configuration" "max_connections" {
   name      = "max_connections"
   server_id = azurerm_postgresql_flexible_server.main.id
   value     = "100"
-}
-
-resource "azurerm_postgresql_flexible_server_configuration" "shared_buffers" {
-  name      = "shared_buffers"
-  server_id = azurerm_postgresql_flexible_server.main.id
-  value     = "256MB"
 }
 
 resource "azurerm_postgresql_flexible_server_configuration" "wal_level" {

@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# env-status.yml
+#
+# Reports the current state of all dev environment resources without making
+# any changes. Use this to check whether the environment is running before
+# trying to access it, and to diagnose unexpected states.
+#
+# Required GitHub Secrets:
+#   AZURE_CREDENTIALS       Full service principal JSON blob (from az ad sp create-for-rbac)
+#   AZURE_RESOURCE_GROUP    Resource group name e.g. rg-axiom-dev
+#   AKS_CLUSTER_NAME        AKS cluster name e.g. aks-axiom-dev
+#   ACR_NAME                Azure Container Registry name e.g. acraxiomdevbpxn
+#   AZURE_DB_SERVER_NAME    *** NEW *** PostgreSQL flexible server name
+#                           Find with:  cd terraform && terraform output -raw db_server_name
+#                           Or: Azure Portal -> resource group -> PostgreSQL server name
+#                           Example value: psql-axiom-dev-bpxn
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: "Env — Status"
+
+on:
+  # Status checks are always manual — there is no value in scheduled polling.
+  workflow_dispatch:
+
+# No concurrency group — status checks are read-only and should never be blocked
+# by a running start or stop workflow.
+
+jobs:
+
+  status:
+    name: "Report environment state"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Authenticate to Azure"
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: "AKS cluster state"
+        run: |
+          echo "=== AKS Cluster ==="
+          az aks show \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
+            --query '{name:name, state:powerState.code,
+                      kubernetesVersion:kubernetesVersion,
+                      nodeCount:agentPoolProfiles[0].count}' \
+            --output table
+
+      - name: "AKS node pool states"
+        run: |
+          echo "=== Node Pools ==="
+          az aks nodepool list \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --cluster-name "${{ secrets.AKS_CLUSTER_NAME }}" \
+            --query '[].{name:name, state:powerState.code,
+                         vmSize:vmSize, count:count,
+                         minCount:minCount, maxCount:maxCount}' \
+            --output table
+
+      - name: "PostgreSQL server state"
+        run: |
+          echo "=== PostgreSQL Server ==="
+          az postgres flexible-server show \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AZURE_DB_SERVER_NAME }}" \
+            --query '{name:name, state:state,
+                      sku:sku.name, location:location}' \
+            --output table
+
+      - name: "Container registry and recent images"
+        run: |
+          echo "=== Container Registry ==="
+          az acr show \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.ACR_NAME }}" \
+            --query '{name:name, loginServer:loginServer,
+                      sku:sku.name}' \
+            --output table
+          echo ""
+          echo "Recent images:"
+          az acr repository list \
+            --name "${{ secrets.ACR_NAME }}" \
+            --output tsv | while read -r repo; do
+              LATEST=$(az acr repository show-tags \
+                --name "${{ secrets.ACR_NAME }}" \
+                --repository "$repo" \
+                --orderby time_desc \
+                --top 1 \
+                --output tsv 2>/dev/null)
+              echo "  $repo: $LATEST"
+            done
+
+      # continue-on-error because kubectl will fail if the cluster is stopped.
+      # A stopped cluster is not an error condition for a status check.
+      - name: "Kubernetes pod status"
+        continue-on-error: true
+        run: |
+          echo "=== Kubernetes Pods ==="
+          az aks get-credentials \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
+            --overwrite-existing 2>/dev/null
+          if kubectl cluster-info 2>/dev/null; then
+            kubectl get pods \
+              --namespace ai-architect \
+              --output wide 2>/dev/null \
+              || echo "Could not list pods (namespace may not exist yet)"
+          else
+            echo "Cluster is not reachable (likely stopped)"
+          fi
+
+      - name: "Estimated running costs"
+        run: |
+          echo "=== Estimated costs while running ==="
+          echo "  AKS nodes:     check node pool count above"
+          echo "  D2s_v3 rate:   ~USD 0.19/hour per node"
+          echo "  PostgreSQL:    ~USD 0.021/hour (B1ms)"
+          echo "  Control plane: ~USD 0.10/hour (always on)"
+          echo ""
+          echo "  Tip: run env-stop to eliminate node costs"
+          echo "  Tip: run terraform destroy for zero cost"
