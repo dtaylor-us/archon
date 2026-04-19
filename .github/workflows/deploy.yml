@@ -3,6 +3,12 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (defaults to latest main SHA)"
+        required: false
+        default: ""
 
 # Only one deployment can run at a time.
 # A newer push to main will cancel an in-progress deployment.
@@ -11,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE_TAG: ${{ github.sha }}
+  IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || github.sha }}
 
 jobs:
   build-and-push:
@@ -79,6 +85,12 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Select subscription
+        run: |
+          az account show -o table
+          az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          az account show -o table
+
       - name: Get AKS credentials
         shell: bash
         run: |
@@ -92,6 +104,17 @@ jobs:
             echo "::error::Missing secret: AZURE_RESOURCE_GROUP"
             exit 1
           fi
+          if [[ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]]; then
+            echo "::error::Missing secret: AZURE_SUBSCRIPTION_ID"
+            exit 1
+          fi
+
+          # Validate the cluster exists before fetching credentials — gives
+          # a clearer error than get-credentials on a 400 Bad Request
+          az aks show \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
+            -o table
 
           az aks get-credentials \
             --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
