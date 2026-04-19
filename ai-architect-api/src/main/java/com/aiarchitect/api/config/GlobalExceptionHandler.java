@@ -4,22 +4,46 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import java.util.stream.Collectors;
 
+/**
+ * Global exception handler for the application.
+ * Converts exceptions into standardized ProblemDetail responses.
+ */
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
+    /**
+     * Handles unknown routes and missing static resources.
+     *
+     * Without this, these exceptions can fall through to the generic handler and
+     * be incorrectly reported as 500 Internal Server Error.
+     */
+    @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
+    public ProblemDetail handleNotFound(Exception ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                "The requested resource was not found.");
+        pd.setTitle("Not Found");
+        pd.setType(URI.create("urn:archon:not-found"));
+        return pd;
+    }
+
+    /**
+     * Handles validation errors from request body binding.
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
+        // Collect all field validation errors into a single string
         String errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(Collectors.joining("; "));
@@ -27,19 +51,30 @@ public class GlobalExceptionHandler {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, errors);
         pd.setTitle("Validation Failed");
-        pd.setType(URI.create("urn:ai-architect:validation-error"));
+        pd.setType(URI.create("urn:archon:validation-error"));
         return pd;
     }
 
+    /**
+     * Handles ResponseStatusException with custom HTTP status codes.
+     */
     @ExceptionHandler(ResponseStatusException.class)
     public ProblemDetail handleResponseStatus(ResponseStatusException ex) {
+        HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
-                HttpStatus.valueOf(ex.getStatusCode().value()),
+                status,
                 ex.getReason() != null ? ex.getReason() : "No details");
-        pd.setTitle(ex.getStatusCode().toString());
+
+        pd.setTitle(status.getReasonPhrase());
+        if (status == HttpStatus.NOT_FOUND) {
+            pd.setType(URI.create("urn:archon:not-found"));
+        }
         return pd;
     }
 
+    /**
+     * Handles malformed JSON request bodies.
+     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail handleMessageNotReadable(HttpMessageNotReadableException ex) {
         log.warn("Malformed request body: {}", ex.getMessage());
@@ -47,10 +82,13 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST,
                 "Malformed request body. Check JSON syntax and field values.");
         pd.setTitle("Bad Request");
-        pd.setType(URI.create("urn:ai-architect:validation-error"));
+        pd.setType(URI.create("urn:archon:validation-error"));
         return pd;
     }
 
+    /**
+     * Handles IllegalArgumentException for invalid application logic.
+     */
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
         log.warn("Bad request: {}", ex.getMessage());
@@ -60,6 +98,9 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    /**
+     * Fallback handler for all unhandled exceptions.
+     */
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleAll(Exception ex) {
         log.error("Unhandled exception", ex);
@@ -67,7 +108,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected error occurred. Please try again.");
         pd.setTitle("Internal Server Error");
-        pd.setType(URI.create("urn:ai-architect:internal-error"));
+        pd.setType(URI.create("urn:archon:internal-error"));
         return pd;
     }
 }

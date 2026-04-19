@@ -1,23 +1,23 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: aiarchitect-postgres
+    container_name: archon-postgres
     environment:
-      POSTGRES_DB: aiarchitect
-      POSTGRES_USER: aiarchitect
+      POSTGRES_DB: archon
+      POSTGRES_USER: archon
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
     ports: ["5432:5432"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aiarchitect"]
+      test: ["CMD-SHELL", "pg_isready -U archon"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   qdrant:
     image: qdrant/qdrant:v1.13.2
-    container_name: aiarchitect-qdrant
+    container_name: archon-qdrant
     ports: ["6333:6333", "6334:6334"]
     volumes:
       - qdrant_data:/qdrant/storage
@@ -31,7 +31,7 @@ services:
     build:
       context: ./ai-architect-agent
       dockerfile: Dockerfile
-    container_name: aiarchitect-agent
+    container_name: archon-agent
     environment:
       INTERNAL_SECRET: ${INTERNAL_SECRET:-dev-secret-change-in-prod}
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
@@ -55,10 +55,10 @@ services:
     build:
       context: ./ai-architect-api
       dockerfile: Dockerfile
-    container_name: aiarchitect-api
+    container_name: archon-api
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/aiarchitect
-      DB_USER: aiarchitect
+      DB_URL: jdbc:postgresql://postgres:5432/archon
+      DB_USER: archon
       DB_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
       AGENT_BASE_URL: http://agent:8001
       AGENT_INTERNAL_SECRET: ${INTERNAL_SECRET:-dev-secret-change-in-prod}
@@ -70,6 +70,16 @@ services:
         condition: service_healthy
       agent:
         condition: service_healthy
+
+  ui:
+    build:
+      context: ./ai-architect-ui
+      dockerfile: Dockerfile
+    container_name: archon-ui
+    ports: ["3000:80"]
+    depends_on:
+      api:
+        condition: service_started
 
 volumes:
   postgres_data:

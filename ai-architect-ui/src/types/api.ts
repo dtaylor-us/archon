@@ -1,0 +1,172 @@
+/* ── Pipeline stage names ─────────────────────────── */
+
+export const PIPELINE_STAGES = [
+  'requirement_parsing',
+  'requirement_challenge',
+  'scenario_modeling',
+  'characteristic_inference',
+  'conflict_analysis',
+  'architecture_generation',
+  'diagram_generation',
+  'trade_off_analysis',
+  'adl_generation',
+  'weakness_analysis',
+  'fmea_analysis',
+  'architecture_review',
+] as const;
+
+export type StageName = (typeof PIPELINE_STAGES)[number];
+
+export type StageStatus = 'pending' | 'running' | 'complete' | 'error' | 'aborted';
+
+export interface StageState {
+  name: StageName;
+  status: StageStatus;
+  payload?: Record<string, unknown>;
+}
+
+/* ── SSE / Agent event types ─────────────────────── */
+
+export type EventType =
+  | 'CHUNK'
+  | 'STAGE_START'
+  | 'STAGE_COMPLETE'
+  | 'TOOL_CALL'
+  | 'COMPLETE'
+  | 'ERROR';
+
+export interface AgentEvent {
+  type: EventType;
+  stage?: string;
+  content?: string;
+  conversationId?: string;
+  payload?: Record<string, unknown>;
+}
+
+/* ── Auth ─────────────────────────────────────────── */
+
+export interface AuthTokenResponse {
+  token: string;
+  email?: string;
+}
+
+/* ── Architecture output ─────────────────────────── */
+
+export interface Component {
+  name: string;
+  responsibility: string;
+  technology: string;
+}
+
+export interface Interaction {
+  from: string;
+  to: string;
+  protocol: string;
+  purpose: string;
+}
+
+export interface ArchitectureOutput {
+  conversationId: string;
+  style: string;
+  components: Component[];
+  interactions: Interaction[];
+  componentDiagram: string;
+  sequenceDiagram: string;
+}
+
+/* ── Governance: Trade-offs ──────────────────────── */
+
+export interface TradeOffDecision {
+  decision_id: string;
+  decision: string;
+  recommendation: string;
+  context_dependency: string;
+  confidence: string;
+  confidence_reason?: string;
+  optimises_characteristics: string[];
+  sacrifices_characteristics: string[];
+  options_considered?: { option: string; rejected_because: string }[];
+  acceptable_because?: string;
+}
+
+/* ── Governance: ADL ─────────────────────────────── */
+
+export interface AdlValidationHint {
+  type: string;
+  test_type?: string;
+  pseudo_code?: string;
+  enforcement_level?: string;
+}
+
+export interface AdlRule {
+  rule_id: string;
+  category: string;
+  subject: string;
+  statement: string;
+  rationale?: string;
+  validation_hint?: AdlValidationHint;
+  optimises_characteristics?: string[];
+}
+
+export interface AdlDocument {
+  document: string;
+  rules: AdlRule[];
+}
+
+/* ── Governance: Weaknesses ──────────────────────── */
+
+export interface Weakness {
+  id: string;
+  title: string;
+  description: string;
+  severity: number;
+  likelihood?: number;
+  category?: string;
+  component_affected: string;
+  mitigation: string;
+  effort_to_fix?: string;
+  early_warning_signals?: string[];
+  linked_characteristic?: string;
+}
+
+export interface WeaknessReport {
+  weaknesses: Weakness[];
+  summary: string;
+}
+
+/* ── Governance: FMEA ────────────────────────────── */
+
+export interface FmeaEntry {
+  id: string;
+  failure_mode: string;
+  component: string;
+  severity: number;
+  occurrence: number;
+  detection: number;
+  rpn: number;
+  recommended_action: string;
+}
+
+/* ── Chat request ────────────────────────────────── */
+
+export type ChatRole = 'USER' | 'ASSISTANT' | 'SYSTEM';
+
+export interface ChatMessage {
+  id?: string;
+  role: ChatRole;
+  content: string;
+  createdAt?: string;
+}
+
+export interface SessionSummary {
+  id: string;
+  title: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ChatRequest {
+  message: string;
+  conversationId?: string;
+}

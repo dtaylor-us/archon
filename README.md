@@ -1,4 +1,4 @@
-# AI Architect Assistant
+# Archon
 
 An AI-powered architecture governance and design assistant that helps software teams generate, evaluate, and refine system architectures through an interactive conversational interface.
 
@@ -81,10 +81,10 @@ This starts four containers:
 
 | Container | Image | Purpose |
 |---|---|---|
-| `aiarchitect-postgres` | `postgres:16-alpine` | Conversation & message persistence |
-| `aiarchitect-qdrant` | `qdrant/qdrant:v1.13.2` | Vector memory for architecture patterns |
-| `aiarchitect-agent` | Built from `ai-architect-agent/` | LLM pipeline service |
-| `aiarchitect-api` | Built from `ai-architect-api/` | REST/SSE API gateway |
+| `archon-postgres` | `postgres:16-alpine` | Conversation & message persistence |
+| `archon-qdrant` | `qdrant/qdrant:v1.13.2` | Vector memory for architecture patterns |
+| `archon-agent` | Built from `ai-architect-agent/` | LLM pipeline service |
+| `archon-api` | Built from `ai-architect-api/` | REST/SSE API gateway |
 
 ### 3. Send a request
 

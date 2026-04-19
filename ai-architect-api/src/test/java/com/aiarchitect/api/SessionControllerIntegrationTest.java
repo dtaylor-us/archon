@@ -55,16 +55,38 @@ class SessionControllerIntegrationTest {
     }
 
     @Test
-    void getMessages_returnsEmptyForUnknownId() {
+    void getMessages_returns404ForUnknownId() {
         UUID unknownId = UUID.randomUUID();
 
         webTestClient.get()
                 .uri("/api/v1/sessions/{id}/messages", unknownId)
                 .header("Authorization", "Bearer " + validToken)
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().isNotFound()
+                .expectHeader().contentType("application/problem+json")
                 .expectBody()
-                .jsonPath("$.length()").isEqualTo(0);
+                .jsonPath("$.title").isEqualTo("Not Found")
+                .jsonPath("$.status").isEqualTo(404);
+    }
+
+    @Test
+    void getMessages_returns404ForOtherUsersConversation() {
+        Conversation conv = conversationRepo.save(Conversation.builder()
+                .userId("someone-else@example.com").title("other conv").build());
+
+        messageRepo.save(Message.builder()
+                .conversation(conv).role(MessageRole.USER)
+                .content("secret").build());
+
+        webTestClient.get()
+                .uri("/api/v1/sessions/{id}/messages", conv.getId())
+                .header("Authorization", "Bearer " + validToken)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectHeader().contentType("application/problem+json")
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("Not Found")
+                .jsonPath("$.status").isEqualTo(404);
     }
 
     @Test
@@ -73,5 +95,50 @@ class SessionControllerIntegrationTest {
                 .uri("/api/v1/sessions/{id}/messages", UUID.randomUUID())
                 .exchange()
                 .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void listSessions_returnsOnlyUserSessions_mostRecentFirst() {
+        conversationRepo.save(Conversation.builder()
+                .userId("someone-else@example.com").title("other conv").build());
+
+        conversationRepo.save(Conversation.builder()
+                .userId("test@example.com").title("older").build());
+        conversationRepo.save(Conversation.builder()
+                .userId("test@example.com").title("newer").build());
+
+        webTestClient.get()
+                .uri("/api/v1/sessions")
+                .header("Authorization", "Bearer " + validToken)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2)
+                .jsonPath("$[0].title").isEqualTo("newer")
+                .jsonPath("$[1].title").isEqualTo("older");
+    }
+
+    @Test
+    void unknownGovernanceRoute_returns404ProblemDetail() {
+        // /risk-matrix does not exist as a mapped endpoint → NoHandlerFoundException → 404 ProblemDetail
+        webTestClient.get()
+                .uri("/api/v1/sessions/{id}/risk-matrix", UUID.randomUUID())
+                .header("Authorization", "Bearer " + validToken)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectHeader().contentType("application/problem+json")
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("Not Found")
+                .jsonPath("$.status").isEqualTo(404);
+    }
+
+    @Test
+    void tradeOffsRoute_returns404WhenNoArchitectureExists() {
+        // Route exists but no architecture output for an unknown conversation → plain 404 (no body)
+        webTestClient.get()
+                .uri("/api/v1/sessions/{id}/trade-offs", UUID.randomUUID())
+                .header("Authorization", "Bearer " + validToken)
+                .exchange()
+                .expectStatus().isNotFound();
     }
 }

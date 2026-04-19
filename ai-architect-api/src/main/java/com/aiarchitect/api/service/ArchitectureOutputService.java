@@ -3,6 +3,8 @@ package com.aiarchitect.api.service;
 import com.aiarchitect.api.domain.model.ArchitectureOutput;
 import com.aiarchitect.api.domain.repository.ArchitectureOutputRepository;
 import com.aiarchitect.api.dto.ArchitectureOutputDto;
+import com.aiarchitect.api.dto.DiagramCollectionDto;
+import com.aiarchitect.api.dto.DiagramDto;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -59,6 +61,38 @@ public class ArchitectureOutputService {
         String sequenceDiagram = (String)
                 structuredOutput.getOrDefault("mermaid_sequence_diagram", "");
 
+        @SuppressWarnings("unchecked")
+        List<Object> tradeOffs = (List<Object>)
+                structuredOutput.getOrDefault("trade_offs", List.of());
+
+        @SuppressWarnings("unchecked")
+        List<Object> adlRules = (List<Object>)
+                structuredOutput.getOrDefault("adl_rules", List.of());
+
+        String adlDocument = (String)
+                structuredOutput.getOrDefault("adl_document", "");
+
+        // Extract Richards-spec ADL fields from the first adl_block if present.
+        // These are denormalized onto the output row for query convenience.
+        String requiresTooling = extractFirstAdlMetadataField(adlRules, "requires");
+        String codegenPrompt = extractFirstAdlMetadataField(adlRules, "prompt");
+        String adlSourceField = extractFirstAdlField(adlRules, "adl_source");
+
+        @SuppressWarnings("unchecked")
+        List<Object> weaknesses = (List<Object>)
+                structuredOutput.getOrDefault("weaknesses", List.of());
+
+        String weaknessSummary = (String)
+                structuredOutput.getOrDefault("weakness_summary", "");
+
+        @SuppressWarnings("unchecked")
+        List<Object> fmeaRisks = (List<Object>)
+                structuredOutput.getOrDefault("fmea_risks", List.of());
+
+        @SuppressWarnings("unchecked")
+        List<Object> diagrams = (List<Object>)
+                structuredOutput.getOrDefault("diagrams", List.of());
+
         ArchitectureOutput output = ArchitectureOutput.builder()
                 .conversationId(conversationId)
                 .style((String) design.getOrDefault("style", ""))
@@ -71,6 +105,16 @@ public class ArchitectureOutputService {
                 .conflicts(toJson(conflicts))
                 .componentDiagram(componentDiagram)
                 .sequenceDiagram(sequenceDiagram)
+                .tradeOffs(toJson(tradeOffs))
+                .adlRules(toJson(adlRules))
+                .adlDocument(adlDocument)
+                .requiresTooling(requiresTooling)
+                .codegenPrompt(codegenPrompt)
+                .adlSource(adlSourceField)
+                .weaknesses(toJson(weaknesses))
+                .weaknessSummary(weaknessSummary)
+                .fmeaRisks(toJson(fmeaRisks))
+                .diagramsJson(toJson(diagrams))
                 .build();
 
         repository.save(output);
@@ -101,8 +145,70 @@ public class ArchitectureOutputService {
                 .conflicts(fromJson(entity.getConflicts()))
                 .componentDiagram(entity.getComponentDiagram())
                 .sequenceDiagram(entity.getSequenceDiagram())
+                .tradeOffs(fromJson(entity.getTradeOffs()))
+                .adlRules(fromJson(entity.getAdlRules()))
+                .adlDocument(entity.getAdlDocument())
+                .requiresTooling(entity.getRequiresTooling())
+                .codegenPrompt(entity.getCodegenPrompt())
+                .adlSource(entity.getAdlSource())
+                .weaknesses(fromJson(entity.getWeaknesses()))
+                .weaknessSummary(entity.getWeaknessSummary())
+                .fmeaRisks(fromJson(entity.getFmeaRisks()))
+                .diagrams(fromJson(entity.getDiagramsJson()))
                 .createdAt(entity.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * Return the full diagram collection for a conversation.
+     * Parses the diagrams_json column into a structured DiagramCollectionDto.
+     */
+    @Transactional(readOnly = true)
+    public Optional<DiagramCollectionDto> getDiagramCollection(UUID conversationId) {
+        return repository.findTopByConversationIdOrderByCreatedAtDesc(conversationId)
+                .map(entity -> {
+                    List<DiagramDto> diagrams = parseDiagrams(entity.getDiagramsJson());
+                    List<String> types = diagrams.stream()
+                            .map(DiagramDto::type)
+                            .toList();
+                    return new DiagramCollectionDto(diagrams, diagrams.size(), types);
+                });
+    }
+
+    /**
+     * Return a single diagram by type for a conversation.
+     * Returns 404 (empty Optional) when the type was not generated.
+     */
+    @Transactional(readOnly = true)
+    public Optional<DiagramDto> getDiagramByType(UUID conversationId, String type) {
+        return repository.findTopByConversationIdOrderByCreatedAtDesc(conversationId)
+                .flatMap(entity -> parseDiagrams(entity.getDiagramsJson()).stream()
+                        .filter(d -> d.type().equals(type))
+                        .findFirst());
+    }
+
+    /**
+     * Parse the diagrams_json JSONB column into a list of DiagramDto records.
+     */
+    private List<DiagramDto> parseDiagrams(String diagramsJson) {
+        if (diagramsJson == null || diagramsJson.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<Map<String, Object>> raw = objectMapper.readValue(
+                    diagramsJson, new TypeReference<>() {});
+            return raw.stream().map(m -> new DiagramDto(
+                    (String) m.getOrDefault("diagram_id", ""),
+                    (String) m.getOrDefault("type", ""),
+                    (String) m.getOrDefault("title", ""),
+                    (String) m.getOrDefault("description", ""),
+                    (String) m.getOrDefault("mermaid_source", ""),
+                    (String) m.getOrDefault("characteristic_addressed", "")
+            )).toList();
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to parse diagrams_json", e);
+            return List.of();
+        }
     }
 
     private String toJson(Object value) {
@@ -124,5 +230,48 @@ public class ArchitectureOutputService {
             log.warn("Failed to deserialize JSON", e);
             return List.of();
         }
+    }
+
+    /**
+     * Extract a field from the metadata object of the first ADL block.
+     * The payload now contains AdlBlock structures with nested metadata.
+     *
+     * @param adlBlocks list of ADL block maps from the pipeline payload
+     * @param fieldName the metadata field to extract (e.g. "requires", "prompt")
+     * @return the field value from the first block, or empty string if absent
+     */
+    @SuppressWarnings("unchecked")
+    private String extractFirstAdlMetadataField(List<Object> adlBlocks, String fieldName) {
+        if (adlBlocks == null || adlBlocks.isEmpty()) {
+            return "";
+        }
+        Object first = adlBlocks.get(0);
+        if (first instanceof Map<?, ?> block) {
+            Object metadata = block.get("metadata");
+            if (metadata instanceof Map<?, ?> meta) {
+                Object value = meta.get(fieldName);
+                return value != null ? value.toString() : "";
+            }
+        }
+        return "";
+    }
+
+    /**
+     * Extract a top-level field from the first ADL block.
+     *
+     * @param adlBlocks list of ADL block maps from the pipeline payload
+     * @param fieldName the field to extract (e.g. "adl_source")
+     * @return the field value from the first block, or empty string if absent
+     */
+    private String extractFirstAdlField(List<Object> adlBlocks, String fieldName) {
+        if (adlBlocks == null || adlBlocks.isEmpty()) {
+            return "";
+        }
+        Object first = adlBlocks.get(0);
+        if (first instanceof Map<?, ?> block) {
+            Object value = block.get(fieldName);
+            return value != null ? value.toString() : "";
+        }
+        return "";
     }
 }

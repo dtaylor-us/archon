@@ -8,6 +8,16 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * Represents a message in a conversation within the Archon system.
+ * 
+ * This entity stores individual messages exchanged in a conversation, including
+ * the sender's role, content, and optional structured output along with token usage metrics.
+ * Messages are immutable after creation and are linked to their parent conversation.
+ * 
+ * @author Archon
+ * @version 1.0
+ */
 @Entity @Table(name = "messages")
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)

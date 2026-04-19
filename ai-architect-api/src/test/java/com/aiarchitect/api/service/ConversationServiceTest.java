@@ -11,6 +11,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
@@ -43,13 +44,14 @@ class ConversationServiceTest {
     }
 
     @Test
-    void resolveConversation_throwsIllegalArgumentForUnknownId() {
+    void resolveConversation_throwsNotFoundForUnknownId() {
         UUID unknown = UUID.randomUUID();
         when(conversationRepo.findByIdAndUserId(unknown, "user1"))
                 .thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () ->
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                 conversationService.resolveConversation(unknown, "user1", "msg"));
+        assertEquals(404, ex.getStatusCode().value());
     }
 
     @Test

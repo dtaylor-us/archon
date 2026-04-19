@@ -12,12 +12,22 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import java.time.Duration;
 
-@Component @Slf4j
+/**
+ * HTTP client for communicating with the AI Agent service.
+ * Handles streaming responses from the agent using Spring WebClient.
+ */
+@Component
+@Slf4j
 public class AgentHttpClient {
 
     private final WebClient webClient;
     private final AgentClientConfig config;
 
+    /**
+     * Initializes the HTTP client with configuration and builds the WebClient.
+     *
+     * @param config the agent client configuration
+     */
     public AgentHttpClient(AgentClientConfig config) {
         this.config = config;
         this.webClient = WebClient.builder()
@@ -30,6 +40,12 @@ public class AgentHttpClient {
                 .build();
     }
 
+    /**
+     * Streams responses from the agent service.
+     *
+     * @param request the agent request
+     * @return a Flux of response strings
+     */
     public Flux<String> stream(AgentRequest request) {
         return webClient.post()
                 .uri("/agent/stream")

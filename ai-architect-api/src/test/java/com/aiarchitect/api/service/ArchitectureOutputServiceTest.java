@@ -3,6 +3,8 @@ package com.aiarchitect.api.service;
 import com.aiarchitect.api.domain.model.ArchitectureOutput;
 import com.aiarchitect.api.domain.repository.ArchitectureOutputRepository;
 import com.aiarchitect.api.dto.ArchitectureOutputDto;
+import com.aiarchitect.api.dto.DiagramCollectionDto;
+import com.aiarchitect.api.dto.DiagramDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -154,5 +156,176 @@ class ArchitectureOutputServiceTest {
         assertTrue(result.isPresent());
         assertEquals(List.of(), result.get().getComponents());
         assertEquals(List.of(), result.get().getInteractions());
+    }
+
+    // -----------------------------------------------------------------------
+    // saveFromStructuredOutput — diagrams extraction
+    // -----------------------------------------------------------------------
+
+    @Test
+    void saveFromStructuredOutput_persistsDiagramsJson() {
+        UUID conversationId = UUID.randomUUID();
+        Map<String, Object> structuredOutput = new HashMap<>();
+        structuredOutput.put("architecture_design", Map.of(
+                "style", "microservices",
+                "components", List.of(),
+                "interactions", List.of()
+        ));
+        structuredOutput.put("diagrams", List.of(
+                Map.of("diagram_id", "D-001", "type", "c4_container",
+                        "title", "C4 Container", "description", "View",
+                        "mermaid_source", "graph TD\nA-->B",
+                        "characteristic_addressed", "modularity")
+        ));
+
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.saveFromStructuredOutput(conversationId, structuredOutput);
+
+        ArgumentCaptor<ArchitectureOutput> captor =
+                ArgumentCaptor.forClass(ArchitectureOutput.class);
+        verify(repository).save(captor.capture());
+        ArchitectureOutput saved = captor.getValue();
+
+        assertNotNull(saved.getDiagramsJson());
+        assertTrue(saved.getDiagramsJson().contains("c4_container"));
+    }
+
+    // -----------------------------------------------------------------------
+    // getDiagramCollection
+    // -----------------------------------------------------------------------
+
+    @Test
+    void getDiagramCollection_returnsCollectionWhenPresent() {
+        UUID conversationId = UUID.randomUUID();
+        String diagramsJson = """
+            [
+              {"diagram_id":"D-001","type":"c4_container","title":"C4",
+               "description":"test","mermaid_source":"graph TD",
+               "characteristic_addressed":"modularity"},
+              {"diagram_id":"D-002","type":"sequence_primary","title":"Seq",
+               "description":"test","mermaid_source":"sequenceDiagram",
+               "characteristic_addressed":"performance"}
+            ]
+            """;
+        ArchitectureOutput entity = ArchitectureOutput.builder()
+                .id(UUID.randomUUID())
+                .conversationId(conversationId)
+                .style("microservices")
+                .componentCount(0)
+                .diagramsJson(diagramsJson)
+                .build();
+        when(repository.findTopByConversationIdOrderByCreatedAtDesc(conversationId))
+                .thenReturn(Optional.of(entity));
+
+        Optional<DiagramCollectionDto> result = service.getDiagramCollection(conversationId);
+
+        assertTrue(result.isPresent());
+        DiagramCollectionDto dto = result.get();
+        assertEquals(2, dto.diagramCount());
+        assertEquals(List.of("c4_container", "sequence_primary"), dto.diagramTypes());
+        assertEquals("D-001", dto.diagrams().get(0).diagramId());
+        assertEquals("C4", dto.diagrams().get(0).title());
+    }
+
+    @Test
+    void getDiagramCollection_returnsEmptyListWhenNullDiagramsJson() {
+        UUID conversationId = UUID.randomUUID();
+        ArchitectureOutput entity = ArchitectureOutput.builder()
+                .id(UUID.randomUUID())
+                .conversationId(conversationId)
+                .style("microservices")
+                .componentCount(0)
+                .diagramsJson(null)
+                .build();
+        when(repository.findTopByConversationIdOrderByCreatedAtDesc(conversationId))
+                .thenReturn(Optional.of(entity));
+
+        Optional<DiagramCollectionDto> result = service.getDiagramCollection(conversationId);
+
+        assertTrue(result.isPresent());
+        assertEquals(0, result.get().diagramCount());
+        assertTrue(result.get().diagrams().isEmpty());
+    }
+
+    @Test
+    void getDiagramCollection_returnsEmptyWhenNoOutput() {
+        UUID conversationId = UUID.randomUUID();
+        when(repository.findTopByConversationIdOrderByCreatedAtDesc(conversationId))
+                .thenReturn(Optional.empty());
+
+        Optional<DiagramCollectionDto> result = service.getDiagramCollection(conversationId);
+
+        assertTrue(result.isEmpty());
+    }
+
+    // -----------------------------------------------------------------------
+    // getDiagramByType
+    // -----------------------------------------------------------------------
+
+    @Test
+    void getDiagramByType_returnsDiagramWhenTypeExists() {
+        UUID conversationId = UUID.randomUUID();
+        String diagramsJson = """
+            [
+              {"diagram_id":"D-001","type":"c4_container","title":"C4",
+               "description":"test","mermaid_source":"graph TD",
+               "characteristic_addressed":"modularity"},
+              {"diagram_id":"D-002","type":"sequence_primary","title":"Seq",
+               "description":"test","mermaid_source":"sequenceDiagram",
+               "characteristic_addressed":"performance"}
+            ]
+            """;
+        ArchitectureOutput entity = ArchitectureOutput.builder()
+                .id(UUID.randomUUID())
+                .conversationId(conversationId)
+                .style("microservices")
+                .componentCount(0)
+                .diagramsJson(diagramsJson)
+                .build();
+        when(repository.findTopByConversationIdOrderByCreatedAtDesc(conversationId))
+                .thenReturn(Optional.of(entity));
+
+        Optional<DiagramDto> result = service.getDiagramByType(conversationId, "sequence_primary");
+
+        assertTrue(result.isPresent());
+        assertEquals("D-002", result.get().diagramId());
+        assertEquals("sequence_primary", result.get().type());
+    }
+
+    @Test
+    void getDiagramByType_returnsEmptyForMissingType() {
+        UUID conversationId = UUID.randomUUID();
+        String diagramsJson = """
+            [
+              {"diagram_id":"D-001","type":"c4_container","title":"C4",
+               "description":"test","mermaid_source":"graph TD",
+               "characteristic_addressed":"modularity"}
+            ]
+            """;
+        ArchitectureOutput entity = ArchitectureOutput.builder()
+                .id(UUID.randomUUID())
+                .conversationId(conversationId)
+                .style("microservices")
+                .componentCount(0)
+                .diagramsJson(diagramsJson)
+                .build();
+        when(repository.findTopByConversationIdOrderByCreatedAtDesc(conversationId))
+                .thenReturn(Optional.of(entity));
+
+        Optional<DiagramDto> result = service.getDiagramByType(conversationId, "er");
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void getDiagramByType_returnsEmptyWhenNoOutput() {
+        UUID conversationId = UUID.randomUUID();
+        when(repository.findTopByConversationIdOrderByCreatedAtDesc(conversationId))
+                .thenReturn(Optional.empty());
+
+        Optional<DiagramDto> result = service.getDiagramByType(conversationId, "c4_container");
+
+        assertTrue(result.isEmpty());
     }
 }

@@ -11,13 +11,24 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 
+/**
+ * Service for generating, validating, and extracting information from JWT tokens.
+ */
 @Service
 @Slf4j
 public class JwtService {
 
+    // HMAC signing key derived from the secret
     private final SecretKey signingKey;
+    // Token expiration time in milliseconds
     private final long expirationMs;
 
+    /**
+     * Constructor that initializes the signing key and expiration time from configuration.
+     *
+     * @param secret the secret key from application properties
+     * @param expirationMs the token expiration time (default: 86400000ms = 24 hours)
+     */
     public JwtService(
             @Value("${security.jwt.secret}") String secret,
             @Value("${security.jwt.expiration-ms:86400000}") long expirationMs) {
@@ -27,6 +38,9 @@ public class JwtService {
 
     /**
      * Generate a JWT token for the given user identifier (email).
+     *
+     * @param subject the user identifier (typically an email)
+     * @return the signed JWT token as a string
      */
     public String generateToken(String subject) {
         Instant now = Instant.now();
@@ -41,10 +55,12 @@ public class JwtService {
     /**
      * Extract the subject (email) from a valid token.
      *
-     * @return the subject, or null if the token is invalid / expired.
+     * @param token the JWT token to parse
+     * @return the subject, or null if the token is invalid / expired
      */
     public String extractSubject(String token) {
         try {
+            // Parse and verify the token signature
             Claims claims = Jwts.parser()
                     .verifyWith(signingKey)
                     .build()
@@ -52,6 +68,7 @@ public class JwtService {
                     .getPayload();
             return claims.getSubject();
         } catch (JwtException | IllegalArgumentException e) {
+            // Log and return null for any JWT validation errors
             log.debug("Invalid JWT: {}", e.getMessage());
             return null;
         }
@@ -59,6 +76,9 @@ public class JwtService {
 
     /**
      * Validate the token and check it is not expired.
+     *
+     * @param token the JWT token to validate
+     * @return true if the token is valid and not expired, false otherwise
      */
     public boolean isValid(String token) {
         return extractSubject(token) != null;

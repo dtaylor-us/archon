@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.llm.client import LLMClient
 from app.memory.store import MemoryStore
+from app.tools.adl_generator import ADLGeneratorV2Tool
 from app.tools.architecture_generator import ArchitectureGeneratorTool
 from app.tools.base import BaseTool
 from app.tools.challenge_engine import RequirementChallengeEngineTool
@@ -10,6 +11,8 @@ from app.tools.conflict_analyzer import CharacteristicConflictAnalyzerTool
 from app.tools.diagram_generator import DiagramGeneratorTool
 from app.tools.requirement_parser import RequirementParserTool
 from app.tools.scenario_modeler import ScenarioModelerTool
+from app.tools.trade_off_engine import TradeOffEngineTool
+from app.tools.weakness_analyzer import WeaknessAnalyzerTool
 
 
 def build_registry(
@@ -33,4 +36,7 @@ def build_registry(
         "conflict_analyzer": CharacteristicConflictAnalyzerTool(llm_client),
         "architecture_generator": ArchitectureGeneratorTool(llm_client, memory_store),
         "diagram_generator": DiagramGeneratorTool(llm_client),
+        "trade_off_engine": TradeOffEngineTool(llm_client),
+        "adl_generator": ADLGeneratorV2Tool(llm_client),
+        "weakness_analyzer": WeaknessAnalyzerTool(llm_client),
     }

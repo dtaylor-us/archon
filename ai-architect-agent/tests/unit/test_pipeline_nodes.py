@@ -12,6 +12,7 @@ from app.pipeline.nodes import (
     conflict_analysis,
     architecture_generation,
     diagram_generation,
+    trade_off_analysis,
     adl_generation,
     weakness_analysis,
     fmea_analysis,
@@ -45,6 +46,15 @@ def _setup_registry(mock_llm: AsyncMock):
     mock_diagram = AsyncMock()
     mock_diagram.run = AsyncMock(side_effect=lambda ctx: ctx)
 
+    mock_trade_off = AsyncMock()
+    mock_trade_off.run = AsyncMock(side_effect=lambda ctx: ctx)
+
+    mock_adl = AsyncMock()
+    mock_adl.run = AsyncMock(side_effect=lambda ctx: ctx)
+
+    mock_weakness = AsyncMock()
+    mock_weakness.run = AsyncMock(side_effect=lambda ctx: ctx)
+
     registry = {
         "requirement_parser": mock_parser,
         "challenge_engine": mock_challenge,
@@ -53,6 +63,9 @@ def _setup_registry(mock_llm: AsyncMock):
         "conflict_analyzer": mock_conflict,
         "architecture_generator": mock_arch_gen,
         "diagram_generator": mock_diagram,
+        "trade_off_engine": mock_trade_off,
+        "adl_generator": mock_adl,
+        "weakness_analyzer": mock_weakness,
     }
     init_registry(registry)
     return registry
@@ -131,6 +144,36 @@ class TestLiveNodes:
 
         _setup_registry["diagram_generator"].run.assert_awaited_once_with(base_context)
 
+    async def test_trade_off_analysis_calls_trade_off_engine(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
+    ):
+        """trade_off_analysis() calls TradeOffEngineTool.run()."""
+        state: PipelineState = {"context": base_context}
+
+        await trade_off_analysis(state)
+
+        _setup_registry["trade_off_engine"].run.assert_awaited_once_with(base_context)
+
+    async def test_adl_generation_calls_adl_generator(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
+    ):
+        """adl_generation() calls ADLGeneratorV2Tool.run()."""
+        state: PipelineState = {"context": base_context}
+
+        await adl_generation(state)
+
+        _setup_registry["adl_generator"].run.assert_awaited_once_with(base_context)
+
+    async def test_weakness_analysis_calls_weakness_analyzer(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
+    ):
+        """weakness_analysis() calls WeaknessAnalyzerTool.run()."""
+        state: PipelineState = {"context": base_context}
+
+        await weakness_analysis(state)
+
+        _setup_registry["weakness_analyzer"].run.assert_awaited_once_with(base_context)
+
 
 class TestStubNodes:
     """Tests for stub pipeline nodes (not yet implemented)."""
@@ -142,8 +185,6 @@ class TestStubNodes:
         state: PipelineState = {"context": base_context}
 
         for node_fn in [
-            adl_generation,
-            weakness_analysis,
             fmea_analysis,
             architecture_review,
         ]:
@@ -157,8 +198,6 @@ class TestStubNodes:
         state: PipelineState = {"context": base_context}
 
         for node_fn in [
-            adl_generation,
-            weakness_analysis,
             fmea_analysis,
             architecture_review,
         ]:

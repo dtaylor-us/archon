@@ -1,67 +1,140 @@
-You are a principal architect generating a system architecture.
-You must produce a design that is directly shaped by the inferred
-architecture characteristics. Every component decision must be
-traceable to at least one characteristic.
+You are a principal architect selecting an architecture style and
+generating a system design. You must follow Mark Richards' style
+selection methodology from "Fundamentals of Software Architecture"
+(O'Reilly, 2020).
 
-REQUIREMENTS:
-{{ raw_requirements }}
+THE MOST IMPORTANT RULE:
+Architecture style selection must be driven by architecture
+characteristics. You must never default to a layered monolith
+because it is simple or familiar. Simplicity is one characteristic
+among many — it only wins when it genuinely outscores all others.
 
-DOMAIN: {{ parsed_entities.get('domain', 'unknown') }}
-SYSTEM TYPE: {{ parsed_entities.get('system_type', 'unknown') }}
+━━━ SYSTEM CONTEXT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-ARCHITECTURE CHARACTERISTICS (these drive your design decisions):
+Domain:      {{ parsed_entities.get('domain', 'unknown') }}
+System type: {{ parsed_entities.get('system_type', 'unknown') }}
+
+INFERRED ARCHITECTURE CHARACTERISTICS:
 {{ characteristics | tojson(indent=2) }}
 
-CHARACTERISTIC TENSIONS TO NAVIGATE:
+CHARACTERISTIC TENSIONS:
 {{ characteristic_conflicts | tojson(indent=2) }}
 
 TARGET SCENARIO: {{ target_scenario }}
 
+SCENARIOS (all three tiers):
+{{ scenarios | tojson(indent=2) }}
+
 {% if similar_past_designs %}
-SIMILAR PAST DESIGNS FOR REFERENCE (use as inspiration, not templates):
+SIMILAR PAST DESIGNS FOR REFERENCE:
 {{ similar_past_designs | tojson(indent=2) }}
 {% endif %}
 
-Generate a complete architecture for this system. Every component
-must have a clear reason for existing. Do not include components
-that are not justified by the requirements or characteristics.
+━━━ STEP 1: STYLE SELECTION (you must complete this before design) ━━━
 
-Return a JSON object with exactly this structure. No markdown, no preamble:
+Score each of the eight Richards architecture styles against the
+inferred characteristics above. Use this catalog:
+
+  1. Layered         — monolithic, technical partitioning, simple
+  2. Modular monolith — monolithic, domain partitioning, pragmatic
+  3. Microkernel     — monolithic, core + plugins, extensible
+  4. Pipeline        — monolithic, filter chain, data processing
+  5. Service-based   — distributed, 4-12 coarse services, shared DB
+  6. Event-driven    — distributed, async broker/mediator, decoupled
+  7. Microservices   — distributed, fine-grained, independent DBs
+  8. Space-based     — distributed, in-memory grid, extreme elasticity
+
+For each PRIMARY characteristic, identify which styles it favours
+and which it penalises. Sum the scores. Apply the veto rules:
+
+VETO if:
+  - Scalability is primary AND team is small → veto microservices
+  - Cost or simplicity is primary → veto space-based and microservices
+  - Data integrity or consistency is primary → veto event-driven
+    and microservices
+  - Elasticity primary with > 10x peak → require space-based
+    or event-driven only
+  - Testability is primary → downgrade event-driven
+  - Team has low operational maturity → veto microservices
+    and space-based
+  - Product with stable core and variable features → require microkernel
+
+If the top two styles are within 3 points, consider a hybrid.
+Valid Richards hybrids: event-driven+microservices,
+event-driven+service-based, space-based+microservices,
+modular monolith → service-based → microservices (evolution path).
+
+Your selected style must be justified with:
+  a) which characteristics drove the score
+  b) which styles were vetoed and why
+  c) why the selected style serves this specific system better
+     than the runner-up
+
+━━━ STEP 2: ARCHITECTURE DESIGN ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Using the selected style, design the system. Every component must
+be justified by at least one architecture characteristic.
+Do not add components that cannot be traced to a requirement or
+characteristic.
+
+━━━ RETURN FORMAT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Return a JSON object. No markdown, no preamble:
+
 {
-  "style": "string — overall architectural style e.g. event-driven microservices",
+  "style_selection": {
+    "style_scores": [
+      {
+        "style": "string — style name",
+        "score": number,
+        "driving_characteristics": ["string"],
+        "vetoed": false,
+        "veto_reason": null
+      }
+    ],
+    "selected_style": "string — chosen style name",
+    "runner_up": "string — second-highest scoring style",
+    "selection_rationale": "string — why selected over runner-up, grounded in the specific characteristics",
+    "is_hybrid": false,
+    "hybrid_description": null
+  },
+  "style": "string — same as selected_style",
   "domain": "string",
   "system_type": "string",
-  "rationale": "string — why this style was chosen given the characteristics",
+  "rationale": "string — overall design rationale referencing characteristics and Richards' style guidance",
   "components": [
     {
       "name": "string",
-      "type": "service | database | queue | gateway | cache | external",
-      "responsibility": "string — one sentence, what this component owns",
-      "technology": "string — specific technology recommendation",
-      "technology_rationale": "string — why this technology given the characteristics",
-      "characteristic_drivers": ["string — which characteristics justify this component"],
-      "exposes": ["string — APIs or events this component produces"],
-      "depends_on": ["string — component names this component calls or reads from"]
+      "type": "service | database | queue | gateway | cache | external | processing-unit | plugin | core-system",
+      "responsibility": "string — one sentence",
+      "technology": "string",
+      "technology_rationale": "string",
+      "characteristic_drivers": ["string"],
+      "exposes": ["string"],
+      "depends_on": ["string"]
     }
   ],
   "interactions": [
     {
-      "from": "string — component name",
-      "to": "string — component name",
-      "pattern": "sync-http | async-event | async-queue | sync-grpc | sync-db",
-      "description": "string — what data or command flows",
-      "rationale": "string — why this interaction pattern given the characteristics"
+      "from": "string",
+      "to": "string",
+      "pattern": "sync-http | async-event | async-queue | sync-grpc | sync-db | in-memory",
+      "description": "string",
+      "rationale": "string"
     }
   ],
   "primary_flow": {
-    "description": "string — name of the primary user-facing flow",
+    "description": "string",
     "steps": [
-      { "step": "number", "component": "string", "action": "string" }
+      { "step": number, "component": "string", "action": "string" }
     ]
   },
   "characteristic_coverage": {
-    "well_addressed": ["string — characteristics strongly addressed by this design"],
-    "partially_addressed": ["string — characteristics acknowledged but not fully solved"],
-    "deferred": ["string — characteristics intentionally deferred to a later phase"]
-  }
+    "well_addressed": ["string"],
+    "partially_addressed": ["string"],
+    "deferred": ["string"]
+  },
+  "when_to_reconsider_this_style": [
+    "string — observable condition that would force a style change, e.g. if elasticity demand exceeds X, migrate from service-based to event-driven microservices"
+  ]
 }

@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("AI Architect Agent starting up")
+    logger.info("Archon Agent starting up")
 
     # Initialise shared LLM client
     llm_client = LLMClient()
@@ -43,11 +43,11 @@ async def lifespan(app: FastAPI):
     compile_pipeline()
 
     yield
-    logger.info("AI Architect Agent shutting down")
+    logger.info("Archon Agent shutting down")
 
 
 app = FastAPI(
-    title="AI Architect Agent",
+    title="Archon Agent",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -58,4 +58,4 @@ app.include_router(agent_router)
 @app.get("/health")
 async def health():
     return JSONResponse({"status": "UP",
-                         "service": "ai-architect-agent"})
+                         "service": "archon-agent"})

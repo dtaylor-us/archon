@@ -1,4 +1,4 @@
-# Copilot instructions for AI Architect Assistant
+# Copilot instructions for Archon
 
 Before generating any code in this repository, read ARCHITECTURE.md at the
 workspace root. That file is the authoritative architecture governance document.
@@ -18,305 +18,308 @@ Key rules to check on every generation:
 
 ---
 
+## CODE QUALITY STANDARDS
+
+These rules apply to every file generated or modified, in every phase,
+without exception. Do not consider any task complete until all rules
+in this section are satisfied.
+
+---
+
+### RULE Q-1 — Code must be commented at the right level of abstraction
+
+Comment why, not what. A comment that restates what the code does is
+noise. A comment that explains why a decision was made is signal.
+
+#### Java
+- Every public class must have a Javadoc comment explaining its
+  responsibility in one or two sentences. Include @author if the
+  class is non-trivial.
+- Every public method must have a Javadoc comment if its purpose
+  is not immediately obvious from its name and signature alone.
+  Include @param, @return, and @throws where relevant.
+- Non-obvious logic blocks inside methods must have an inline comment
+  explaining the reasoning. Examples: timeout values, retry counts,
+  magic numbers, workarounds, and deliberate design decisions.
+- Do not comment self-evident code:
+    // Save the message  ← bad
+    messageRepo.save(message);
+- Do comment decisions that have context behind them:
+    // Limit to 20 messages to avoid exceeding the LLM context window.
+    // Increase this only if the model and token budget allow.
+    getRecentMessages(id, 20)
+
+#### Python
+- Every module must have a module-level docstring explaining what
+  it contains and its role in the system.
+- Every class must have a class-level docstring.
+- Every public function and method must have a docstring. Use the
+  following format consistently:
+    """
+    One sentence summary.
+
+    Longer explanation if needed.
+
+    Args:
+        param_name: description
+    Returns:
+        description
+    Raises:
+        ExceptionType: condition
+    """
+- Inline comments follow the same rule as Java: explain why, not what.
+
+#### TypeScript / React
+- Every exported function, hook, and component must have a JSDoc
+  comment explaining its purpose and props/parameters.
+- Complex state transitions, non-obvious hook dependencies, and
+  workarounds must have inline comments.
+- Do not add comments to JSX markup unless the structure is
+  genuinely non-obvious.
+
+---
+
+### RULE Q-2 — Naming must be unambiguous and consistent
+
+- Names must describe what a thing is or does, not how it is
+  implemented. manager, helper, util, handler are almost always
+  wrong. processor, validator, renderer, bridge are usually right.
+- Boolean variables and functions must read as a yes/no question:
+    isStreaming, hasToken, shouldReiterate — correct
+    streaming, token, reiterate — incorrect
+- Collections must be plural: stages, messages, rules — not stageList.
+- Constants must be SCREAMING_SNAKE_CASE in Java and Python.
+  TypeScript constants at module scope follow the same convention.
+- Avoid abbreviations unless the abbreviation is universally
+  understood in the domain: url, id, jwt, llm, sse are fine.
+  msg, req, res, ctx are acceptable in short-lived local variables
+  only — never in class fields, method signatures, or public APIs.
+
+---
+
+### RULE Q-3 — Functions and methods must do one thing
+
+- A method that does more than one conceptual thing must be split.
+  The test is: if you need the word "and" to describe what a method
+  does, it should be two methods.
+- Maximum line count guidance (not a hard limit, but a trigger
+  for review): 30 lines for Python functions, 40 lines for Java
+  methods, 60 lines for React components. If you exceed these,
+  add a comment explaining why extraction was not appropriate,
+  or extract.
+- No method should have more than three levels of nesting.
+  Extract inner logic into named helper methods instead.
+
+---
+
+### RULE Q-4 — Error handling must be explicit and informative
+
+#### Java
+- Never catch Exception or Throwable unless you are at a
+  boundary (controller advice, top-level handler). Catch the
+  most specific type available.
+- Every catch block must either rethrow, log with context, or
+  both. An empty catch block or a catch block with only a comment
+  is never acceptable.
+- Log messages must include relevant context:
+    log.error("Failed to persist ADL rules conversation={}",
+              conversationId, e)   ← correct
+    log.error("Error", e)          ← never acceptable
+
+#### Python
+- Never use bare except:. Always catch a specific exception type.
+- Log all caught exceptions with enough context to diagnose the
+  failure in production without access to a debugger.
+- Functions that are designed to be fault-tolerant (like
+  MemoryStore methods) must document this in their docstring and
+  log a WARNING, never silently swallow exceptions.
+
+#### TypeScript
+- API call functions must distinguish between network errors,
+  HTTP errors, and parse errors. Do not treat all failures as
+  a generic "something went wrong".
+- Promises must be caught. No floating promises anywhere in
+  the codebase. Use void operator with a comment only when a
+  fire-and-forget pattern is genuinely intentional.
+
+---
+
+### RULE Q-5 — No magic numbers or strings
+
+Any literal value that encodes a business rule, limit, or
+configuration must be extracted to a named constant with a comment
+explaining what it represents and why it has that value.
+
+Examples of what must be extracted:
+  Java:   private static final int MAX_HISTORY_MESSAGES = 20;
+          // Limit context window sent to LLM — increase only if
+          // token budget and model context length allow.
+
+  Python: MAX_CLARIFYING_QUESTIONS = 8
+          # More than 8 questions is noise. The LLM is instructed
+          # to return at most 8; this is a defensive trim.
+
+  TS:     const MAX_MESSAGE_LENGTH = 32_000
+          // Spring Boot validation limit on ChatRequest.message.
+
+---
+
+### RULE Q-6 — Imports must be clean and ordered
+
+#### Java
+- No wildcard imports (import com.example.*).
+- Remove all unused imports before submitting.
+- Order: Java standard library, then third-party, then internal.
+
+#### Python
+- No star imports (from module import *) except in __init__.py
+  re-exports where this is deliberate.
+- Order: standard library, third-party, internal. Separated by
+  blank lines. Use isort conventions.
+
+#### TypeScript
+- No unused imports.
+- Order: React, third-party libraries, internal types, internal
+  modules. Separated by blank lines.
+
+---
+
+### RULE Q-7 — No dead code
+
+- Do not leave commented-out code in committed files. If code
+  is removed, remove it entirely. Version control preserves history.
+- Do not leave TODO comments that describe unimplemented
+  functionality unless they are linked to a known future phase.
+  Acceptable: // TODO Phase 6: replace with real identity provider
+  Not acceptable: // TODO: fix this later
+
+---
+
 ## TESTING REQUIREMENTS
 
-These rules apply at the end of every phase and whenever new code is generated.
-Do not consider a phase complete until all rules in this section pass.
+These rules apply at the end of every phase and whenever new code
+is generated. Do not consider a phase complete until all rules in
+this section pass.
 
 ---
 
 ### RULE T-1 — Write tests alongside code, not after
 
-Every new class, function, or endpoint generated in a phase must have
-corresponding tests written in the same session, before moving on.
-Never defer tests to a cleanup task. If Copilot generates a class without
-tests, immediately follow up with: "Now write the tests for that class."
+Every new class, function, or endpoint generated in a phase must
+have corresponding tests written in the same session, before moving
+on. Never defer tests to a cleanup task.
+
+If Copilot generates a class without tests, immediately follow up
+with: "Now write the tests for that class following the testing
+rules in copilot-instructions.md."
 
 ---
 
-### RULE T-2 — Spring Boot test requirements (ai-architect-api)
+### RULE T-2 — Test quality standards
 
-#### Unit tests
-Location: src/test/java/com/aiarchitect/api/
+These rules apply to every test file in every language.
 
-Every service class must have a unit test class named {ClassName}Test.
-Use Mockito for all dependencies. Do not start the Spring context for unit tests.
-Annotate with @ExtendWith(MockitoExtension.class) only.
+#### What every test must do
+- Test one behaviour per test function. If the test name needs
+  "and" in it, split it into two tests.
+- Assert something specific about the output, return value, or
+  side effect. A test that only asserts no exception was thrown
+  is not a test — it is a placeholder.
+- Use descriptive names that read as a sentence describing the
+  behaviour under test:
+      saveMessage_persistsRoleAndContent        ← correct
+      run_trimsClarifyingQuestionsToEight       ← correct
+      test1 / testMethod / shouldWork           ← never acceptable
+- Arrange, Act, Assert structure. Blank lines between the three
+  sections. No blank lines within a section.
 
-Classes that require unit tests:
-- ChatService — mock ConversationService and AgentBridgeService
-- ConversationService — mock ConversationRepository and MessageRepository
-- AgentBridgeService — mock AgentHttpClient, test JSON parsing and error mapping
-- JwtService (Phase 2+) — test token generation, extraction, and expiry
-- AgentHttpClient — mock WebClient using MockWebServer from okhttp3
+#### What every test must never do
+- Never mock the class under test. Only mock its dependencies.
+- Never use real secrets, API keys, or external service calls.
+  Use placeholder values ("test-key", "test-secret") or mocks.
+- Never skip tests with @Disabled, @pytest.mark.skip, or
+  similar unless accompanied by a comment referencing a known
+  issue and the phase in which it will be resolved.
+- Never use Thread.sleep() or asyncio.sleep() to handle timing
+  in tests. Use proper async/await patterns or test doubles.
 
-What to assert in each:
-  ChatService:
-    - streamChat() saves user message before calling agent
-    - streamChat() saves assistant message in doOnComplete, not doOnNext
-    - streamChat() creates new conversation when conversationId is null
-    - streamChat() reuses existing conversation when conversationId is provided
-    - streamChat() emits ERROR event when AgentBridgeService throws
+#### Language-specific conventions
+Java:
+  - Unit tests: @ExtendWith(MockitoExtension.class). Never start
+    the Spring context for a test that only needs a single class.
+  - Integration tests: @SpringBootTest with Testcontainers for
+    PostgreSQL. Mock external HTTP calls with MockWebServer.
+  - Name test classes {ClassName}Test for units,
+    {ClassName}IntegrationTest for integration tests.
 
-  ConversationService:
-    - resolveConversation() creates new conversation when id is null
-    - resolveConversation() throws IllegalArgumentException for unknown id
-    - getRecentMessages() returns at most the requested limit
-    - saveMessage() persists role and content correctly
+Python:
+  - Use pytest with pytest-asyncio. Mark async tests with
+    @pytest.mark.asyncio.
+  - Mock LLM calls with unittest.mock.AsyncMock. Never make
+    real LLM API calls in any test.
+  - Place unit tests in tests/unit/, integration tests in
+    tests/integration/. Shared fixtures in tests/conftest.py.
 
-  AgentBridgeService:
-    - Returns parsed AgentResponse for valid NDJSON line
-    - Returns ERROR type AgentResponse for malformed JSON line
-    - Propagates AgentCommunicationException wrapped in correct type
-
-  JwtService:
-    - generateToken() produces a non-blank string
-    - extractUsername() returns the username used to generate the token
-    - isTokenValid() returns false for an expired token
-    - isTokenValid() returns false for a tampered token
-
-#### Integration tests
-Location: src/test/java/com/aiarchitect/api/
-
-Use @SpringBootTest(webEnvironment = RANDOM_PORT) with a real
-PostgreSQL test container (org.testcontainers:postgresql).
-Add testcontainers to pom.xml in test scope if not already present:
-
-  <dependency>
-    <groupId>org.testcontainers</groupId>
-    <artifactId>postgresql</artifactId>
-    <scope>test</scope>
-  </dependency>
-  <dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-testcontainers</artifactId>
-    <scope>test</scope>
-  </dependency>
-
-Classes that require integration tests:
-- ChatControllerIntegrationTest
-- SessionControllerIntegrationTest
-
-What to assert in each:
-  ChatControllerIntegrationTest:
-    - POST /api/v1/chat/stream without token returns 401 (Phase 2+)
-    - POST /api/v1/chat/stream with valid token and mocked agent
-      returns content-type text/event-stream
-    - POST /api/v1/chat/stream with invalid request body returns 400
-      with validation error JSON
-    - POST /api/v1/chat/stream persists conversation and message to DB
-
-  SessionControllerIntegrationTest:
-    - GET /api/v1/sessions/{id}/messages returns messages in order
-    - GET /api/v1/sessions/{unknown-id}/messages returns 400
-
-For integration tests, mock the AgentHttpClient using MockWebServer
-so tests do not depend on the Python service being running.
+TypeScript:
+  - Use Vitest with @testing-library/react for component tests.
+  - Mock fetch and external APIs — never make real HTTP calls.
+  - Test user-visible behaviour, not implementation details.
+    Prefer queries by role, label, and text over test IDs.
 
 ---
 
-### RULE T-3 — Python test requirements (ai-architect-agent)
+### RULE T-3 — Coverage requirements
 
-#### Unit tests
-Location: ai-architect-agent/tests/unit/
+A coverage gate must pass before any phase is declared complete.
+Coverage is a build gate, not a suggestion.
 
-Use pytest with pytest-asyncio. All async test functions use
-@pytest.mark.asyncio. Mock the LLM client using unittest.mock.AsyncMock.
-Never make real LLM API calls in tests.
+#### Spring Boot — JaCoCo
+Minimum line coverage: 80% per package.
+Excludes: main application class, domain model classes, DTOs,
+and simple exception classes that contain no logic.
 
-Files that require unit tests:
+Run: mvn verify
+Report: target/site/jacoco/index.html
+The build fails automatically if coverage falls below threshold.
 
-  tests/unit/test_llm_client.py
-    - LLMClient.complete() retries on RateLimitError (mock tenacity)
-    - LLMClient.complete() raises LLMCallException after max retries
-    - LLMClient.complete() appends JSON instruction when response_format="json"
-    - LLMClient.complete() logs token counts at DEBUG level
+#### Python — pytest-cov
+Minimum line coverage: 80%.
+Excludes: app/prompts/ directory, conftest.py files.
 
-  tests/unit/test_prompt_loader.py
-    - load_prompt() renders template variables correctly
-    - load_prompt() raises FileNotFoundError for missing template
-    - load_prompt() renders parsed_entities as valid JSON via tojson filter
+Run: pytest --cov=app --cov-report=term-missing --cov-fail-under=80
+Exits with code 1 if below threshold.
 
-  tests/unit/tools/test_requirement_parser.py
-    - run() writes domain and system_type to context.parsed_entities
-    - run() writes functional_requirements list to context.parsed_entities
-    - run() raises ToolExecutionException when LLM returns invalid JSON
-    - run() does not mutate other ArchitectureContext fields
+#### TypeScript — Vitest
+Minimum line coverage: 80%.
+Excludes: src/types/, src/main.tsx.
 
-  tests/unit/tools/test_challenge_engine.py
-    - run() writes missing_requirements to context
-    - run() writes clarifying_questions to context
-    - run() trims clarifying_questions to 8 items when LLM returns more
-    - run() logs a warning when trimming occurs
-    - run() raises ToolExecutionException on invalid JSON response
-
-  tests/unit/tools/test_scenario_modeler.py
-    - run() writes exactly 3 scenarios to context
-    - run() raises ToolExecutionException when fewer than 3 scenarios returned
-    - run() validates tier values are exactly small, medium, large in order
-    - run() does not mutate other ArchitectureContext fields
-
-  tests/unit/test_pipeline_nodes.py
-    - parse_node() calls RequirementParserTool.run() with the context
-    - challenge_node() calls RequirementChallengeEngineTool.run()
-    - scenarios_node() calls ScenarioModelerTool.run()
-    - stub nodes return context unchanged
-    - stub nodes do not raise exceptions
-
-#### Integration tests
-Location: ai-architect-agent/tests/integration/
-
-  tests/integration/test_agent_endpoint.py
-    - POST /agent/stream without X-Internal-Secret returns 401
-    - POST /agent/stream with wrong secret returns 401
-    - POST /agent/stream with valid secret and mocked LLM returns
-      content-type application/x-ndjson
-    - Response stream contains STAGE_START event for requirement_parsing
-    - Response stream contains STAGE_COMPLETE event for each stage
-    - Response stream ends with COMPLETE event
-    - COMPLETE payload contains conversationId
-    - If a tool raises ToolExecutionException, stream emits ERROR event
-      and terminates cleanly
-
-Use httpx.AsyncClient as the test HTTP client.
-Mock LLMClient at the app.state level so no real API calls are made.
-
-#### Fixture file
-Create tests/conftest.py with:
-- A pytest fixture named mock_llm that returns an AsyncMock of LLMClient
-- A pytest fixture named sample_requirements that returns a multi-sentence
-  requirements string suitable for testing all three tools
-- A pytest fixture named base_context that returns an ArchitectureContext
-  populated with sample_requirements
+Run: npx vitest run --coverage
+Fails if below threshold.
 
 ---
 
-### RULE T-4 — Coverage requirements
+### RULE T-4 — End-of-phase checklist
 
-#### Spring Boot
-Add the JaCoCo plugin to pom.xml:
+Run every command below and confirm it passes before declaring
+a phase complete. Do not move to the next phase with any
+failing command.
 
-  <plugin>
-    <groupId>org.jacoco</groupId>
-    <artifactId>jacoco-maven-plugin</artifactId>
-    <version>0.8.12</version>
-    <executions>
-      <execution>
-        <goals><goal>prepare-agent</goal></goals>
-      </execution>
-      <execution>
-        <id>report</id>
-        <phase>verify</phase>
-        <goals><goal>report</goal></goals>
-      </execution>
-      <execution>
-        <id>check</id>
-        <goals><goal>check</goal></goals>
-        <configuration>
-          <rules>
-            <rule>
-              <element>PACKAGE</element>
-              <limits>
-                <limit>
-                  <counter>LINE</counter>
-                  <value>COVEREDRATIO</value>
-                  <minimum>0.80</minimum>
-                </limit>
-              </limits>
-            </rule>
-          </rules>
-        </configuration>
-      </execution>
-    </executions>
-    <configuration>
-      <excludes>
-        <exclude>com/aiarchitect/api/AiArchitectApplication.class</exclude>
-        <exclude>com/aiarchitect/api/domain/model/**</exclude>
-        <exclude>com/aiarchitect/api/dto/**</exclude>
-        <exclude>com/aiarchitect/api/exception/AgentCommunicationException.class</exclude>
-      </excludes>
-    </configuration>
-  </plugin>
+#### Spring Boot (run if phase touches ai-architect-api)
+  mvn test                          # unit tests
+  mvn verify                        # integration tests + coverage
 
-Run coverage check with: mvn verify
-Report is generated at: target/site/jacoco/index.html
-The build fails if any non-excluded package falls below 80% line coverage.
+#### Python (run if phase touches ai-architect-agent)
+  pytest tests/unit/ -v             # unit tests
+  pytest tests/integration/ -v      # integration tests
+  pytest --cov=app \
+    --cov-report=term-missing \
+    --cov-fail-under=80             # coverage gate
 
-#### Python
-Add pytest-cov to pyproject.toml dev dependencies:
+#### TypeScript (run if phase touches ai-architect-ui)
+  npx vitest run                    # all tests
+  npx vitest run --coverage         # coverage gate
 
-  [project.optional-dependencies]
-  dev = [
-      "pytest>=8.0",
-      "pytest-asyncio>=0.23",
-      "pytest-cov>=5.0",
-      "httpx>=0.27.0",
-  ]
-
-Add a [tool.coverage.run] section to pyproject.toml:
-
-  [tool.coverage.run]
-  source = ["app"]
-  omit = ["app/prompts/*", "*/conftest.py"]
-
-  [tool.coverage.report]
-  fail_under = 80
-  show_missing = true
-  exclude_lines = [
-      "pragma: no cover",
-      "if __name__ == .__main__.:",
-      "raise NotImplementedError",
-  ]
-
-Run coverage check with:
-  pytest --cov=app --cov-report=term-missing --cov-fail-under=80
-
-The command exits with code 1 if coverage falls below 80%.
-Always run this command at the end of every phase before declaring done.
-
----
-
-### RULE T-5 — End-of-phase checklist
-
-At the end of every phase, before declaring it complete, run all of
-the following commands and confirm each one passes:
-
-#### Spring Boot
-  mvn test                         # all unit tests pass
-  mvn verify                       # integration tests + coverage check pass
-  mvn verify -Dfailsafe.skip=false # ensure integration tests are not skipped
-
-#### Python
-  pytest tests/unit/ -v                           # all unit tests pass
-  pytest tests/integration/ -v                    # all integration tests pass
-  pytest --cov=app --cov-report=term-missing \
-         --cov-fail-under=80                      # coverage gate passes
-
-If any command fails, fix the failures before moving to the next phase.
-Do not move on with known failing tests. Do not skip tests by adding
-@pytest.mark.skip or @Disabled without a comment explaining why and a
-linked issue.
-
----
-
-### RULE T-6 — What Copilot must never do with tests
-
-1. Never generate tests that mock the class under test.
-   The class under test must be a real instance; only its dependencies are mocked.
-
-2. Never write tests that only assert no exception was thrown.
-   Every test must assert something about the output or side effect.
-
-3. Never use @SpringBootTest for tests that only need to test a single
-   service class. Use @ExtendWith(MockitoExtension.class) instead.
-
-4. Never generate tests with names like test1(), testMethod(), or
-   shouldWork(). Test names must describe the behaviour being verified:
-   e.g. saveMessage_persistsRoleAndContent(),
-        run_trimsClarifyingQuestionsToEight()
-
-5. Never add real API keys or secrets to test files or test resources.
-   Use placeholder strings like "test-key" or environment variable stubs.
-
-6. Never skip the coverage check step at the end of a phase.
-   Coverage is a gate, not a suggestion.
+If a command fails, fix all failures before proceeding.
+Do not suppress failures by modifying coverage thresholds,
+adding skip annotations, or excluding additional files from
+coverage without an explicit justification comment.

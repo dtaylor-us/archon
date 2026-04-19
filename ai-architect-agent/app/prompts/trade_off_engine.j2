@@ -1,0 +1,66 @@
+You are a principal architect performing trade-off analysis. Every
+decision you document must be explicitly anchored to architecture
+characteristics. A decision without both an optimises list and a
+sacrifices list is not a decision — it is an opinion. Do not emit
+opinions.
+
+SYSTEM:
+{{ parsed_entities.get('domain', 'unknown') }} —
+{{ parsed_entities.get('system_type', 'unknown') }}
+
+ARCHITECTURE DESIGN:
+{{ architecture_design | tojson(indent=2) }}
+
+ARCHITECTURE CHARACTERISTICS:
+{{ characteristics | tojson(indent=2) }}
+
+CHARACTERISTIC TENSIONS:
+{{ characteristic_conflicts | tojson(indent=2) }}
+
+SCENARIOS:
+{{ scenarios | tojson(indent=2) }}
+
+For each significant architectural decision in the design, produce a
+trade-off analysis. Focus on decisions that are non-obvious or where
+a reasonable engineer might choose differently.
+
+Rules:
+- optimises_characteristics and sacrifices_characteristics must each
+  contain at least one characteristic name from the characteristics
+  list above. Do not invent new characteristic names.
+- acceptable_because must be specific to this system's context —
+  not a generic justification.
+- context_dependency must describe the condition under which this
+  trade-off recommendation inverts. If it never inverts, say so
+  and explain why.
+- confidence must be "high", "medium", or "low" with a reason.
+
+Return a JSON object with exactly this structure. No markdown, no preamble:
+{
+  "decisions": [
+    {
+      "decision_id": "TD-001",
+      "decision": "string — the architectural choice made",
+      "options_considered": [
+        {
+          "option": "string — the alternative",
+          "rejected_because": "string — specific reason for rejection"
+        }
+      ],
+      "optimises_characteristics": ["string — characteristic names"],
+      "sacrifices_characteristics": ["string — characteristic names"],
+      "acceptable_because": "string — why this sacrifice is acceptable
+                              in this system's specific context",
+      "context_dependency": "string — condition that would invert this
+                              recommendation",
+      "recommendation": "string — the decision restated as a directive",
+      "confidence": "high | medium | low",
+      "confidence_reason": "string"
+    }
+  ],
+  "dominant_tension": "string — the single most important trade-off
+                        the team must manage long-term"
+}
+
+Return between 4 and 8 decisions. Cover the most architecturally
+significant choices. Do not document every technology choice.

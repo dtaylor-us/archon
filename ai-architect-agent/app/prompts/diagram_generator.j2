@@ -1,32 +1,116 @@
-You are converting a structured architecture description into valid
-Mermaid diagram source code.
+You are generating Mermaid diagrams for a software architecture.
+Your diagrams must be detailed enough that an engineer can use
+them to implement the system without additional clarification.
+Shallow diagrams with only box names and unlabelled arrows are
+not acceptable.
 
-ARCHITECTURE:
-{{ architecture_design | tojson(indent=2) }}
+━━━ ARCHITECTURE CONTEXT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Generate two Mermaid diagrams.
+Architecture style:  {{ architecture_design.get('style', 'unknown') }}
+Domain:              {{ parsed_entities.get('domain', 'unknown') }}
+System type:         {{ parsed_entities.get('system_type', 'unknown') }}
 
-DIAGRAM 1 — Component diagram using C4 Container style:
-- Use graph TD direction
-- Each component is a node with its name and type
-- Each interaction is a labelled edge
-- Group related components inside subgraphs by their type
-- External components use a different node shape ([[ ]])
-- Do not include Mermaid fences (no ```mermaid)
+COMPONENTS:
+{{ architecture_design.get('components', []) | tojson(indent=2) }}
 
-DIAGRAM 2 — Sequence diagram for the primary flow:
-- Use sequenceDiagram
-- Show each step in primary_flow.steps as a message between components
-- Label each arrow with the action
-- Use ->> for async interactions, -> for sync
-- Do not include Mermaid fences (no ```mermaid)
+INTERACTIONS:
+{{ architecture_design.get('interactions', []) | tojson(indent=2) }}
 
-Return a JSON object with exactly this structure. No markdown, no preamble:
+PRIMARY FLOW:
+{{ architecture_design.get('primary_flow', {}) | tojson(indent=2) }}
+
+ARCHITECTURE CHARACTERISTICS:
+{{ characteristics | tojson(indent=2) }}
+
+SELECTED DIAGRAM TYPES:
+{{ selected_diagram_types | tojson(indent=2) }}
+
+━━━ DIAGRAM REQUIREMENTS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Generate exactly the diagram types listed in SELECTED DIAGRAM TYPES.
+Do not generate any other types. Do not omit any listed type.
+
+For every diagram:
+  - Use only valid Mermaid syntax for that diagram type
+  - Do not include ``` fences in the diagram source
+  - Do not include a title line inside the diagram source
+  - Every node must have a meaningful label — no single-letter IDs
+  - Every edge must have a label describing what flows across it
+  - Include the full detail level specified:
+
+  C4 Container:
+    Node format:  Name["Display Name\n(Technology)"]
+    DB format:    Name[(Display Name\nDB Type)]
+    Broker format: Name([Display Name\nBroker Type])
+    Edge format:  -->|"Protocol Method\nPayload type"| Target
+    External systems in subgraph "External Systems"
+    Group by deployment boundary using subgraph blocks
+
+  Primary sequence diagram:
+    Cover every step in primary_flow.steps
+    Show database interactions explicitly
+    Use ->> for calls, -->> for responses
+    Use activate/deactivate for async operations
+    Add Note annotations for non-obvious steps
+    Minimum 8 interaction lines
+
+  Error sequence diagram:
+    Mirror the primary flow start
+    Use alt block at failure point
+    Show error propagation back through call chain
+    Show compensating actions if any
+    Show what the original caller receives
+
+  State diagram:
+    All states including error and terminal states
+    Every transition labelled with its trigger
+    Guard conditions in [brackets]
+    At least one error path shown
+
+  Class diagram:
+    Aggregate root and contained entities
+    Key interfaces with method signatures
+    Cardinality on all associations
+    Maximum 12 classes
+
+  ER diagram:
+    PK and FK columns with types
+    Crow's foot notation
+    Every architecturally significant table
+
+  Deployment diagram:
+    Container per service
+    Network boundaries as subgraphs
+    Ports on connections
+    External managed services shown
+
+━━━ RETURN FORMAT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Return a JSON object. No markdown, no preamble:
+
 {
-  "component_diagram": "string — complete Mermaid graph TD source",
-  "sequence_diagram": "string — complete Mermaid sequenceDiagram source",
-  "diagram_notes": "string — any important caveats about the diagrams"
+  "diagrams": [
+    {
+      "diagram_id": "D-001",
+      "type": "string — c4_container | sequence_primary | sequence_error | state | class | er | deployment | flowchart",
+      "title": "string — human-readable title for this diagram",
+      "description": "string — one sentence: what this diagram shows and why it matters for this architecture",
+      "mermaid_source": "string — complete valid Mermaid source, no fences, no title line inside",
+      "characteristic_addressed": "string — which architecture characteristic this diagram makes visible"
+    }
+  ],
+  "diagram_selection_rationale": "string — why these specific diagram types were chosen for this architecture style and characteristics"
 }
 
-The Mermaid source must be syntactically valid. Use only standard
-Mermaid syntax. Do not use experimental or extended features.
+━━━ VALIDATION RULES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Before returning:
+  - Verify every mermaid_source starts with the correct keyword
+    for its type (graph, sequenceDiagram, stateDiagram-v2,
+    classDiagram, erDiagram, flowchart)
+  - Verify no mermaid_source contains ``` characters
+  - Verify the c4_container diagram contains every component
+    from the COMPONENTS list above
+  - Verify the sequence_primary diagram covers every step
+    from PRIMARY FLOW steps
+  - Verify no diagram source is fewer than 10 lines

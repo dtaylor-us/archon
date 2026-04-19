@@ -18,6 +18,7 @@ from app.pipeline.nodes import (
     conflict_analysis,
     architecture_generation,
     diagram_generation,
+    trade_off_analysis,
     adl_generation,
     weakness_analysis,
     fmea_analysis,
@@ -35,6 +36,7 @@ ORDERED_STAGES: list[str] = [
     "conflict_analysis",
     "architecture_generation",
     "diagram_generation",
+    "trade_off_analysis",
     "adl_generation",
     "weakness_analysis",
     "fmea_analysis",
@@ -51,6 +53,7 @@ _NODE_FN_MAP = {
     "conflict_analysis": conflict_analysis,
     "architecture_generation": architecture_generation,
     "diagram_generation": diagram_generation,
+    "trade_off_analysis": trade_off_analysis,
     "adl_generation": adl_generation,
     "weakness_analysis": weakness_analysis,
     "fmea_analysis": fmea_analysis,
@@ -148,18 +151,81 @@ async def run_pipeline(
                         context.characteristic_conflicts
                     )
                 elif node_name == "architecture_generation":
+                    stage_payload["style"] = (
+                        context.selected_architecture_style
+                    )
+                    stage_payload["style_scores"] = [
+                        {
+                            "style": s.get("style"),
+                            "score": s.get("score"),
+                            "vetoed": s.get("vetoed"),
+                        }
+                        for s in context.architecture_design.get(
+                            "style_selection", {}
+                        ).get("style_scores", [])
+                    ]
+                    stage_payload["runner_up"] = (
+                        context.architecture_design.get(
+                            "style_selection", {}
+                        ).get("runner_up")
+                    )
                     stage_payload["component_count"] = len(
                         context.architecture_design.get("components", [])
                     )
-                    stage_payload["style"] = context.architecture_design.get(
-                        "style", ""
+                    stage_payload["interaction_count"] = len(
+                        context.architecture_design.get("interactions", [])
                     )
                 elif node_name == "diagram_generation":
-                    stage_payload["component_diagram_length"] = len(
-                        context.mermaid_component_diagram
+                    stage_payload["diagram_count"] = len(
+                        context.diagrams
                     )
-                    stage_payload["sequence_diagram_length"] = len(
-                        context.mermaid_sequence_diagram
+                    stage_payload["diagram_types"] = [
+                        d.type.value for d in context.diagrams
+                    ]
+                    stage_payload["diagrams"] = [
+                        {
+                            "diagram_id": d.diagram_id,
+                            "type": d.type.value,
+                            "title": d.title,
+                            "description": d.description,
+                            "source_lines": len(
+                                [line for line in
+                                 d.mermaid_source.split("\n")
+                                 if line.strip()]
+                            ),
+                        }
+                        for d in context.diagrams
+                    ]
+                elif node_name == "trade_off_analysis":
+                    stage_payload["decision_count"] = len(
+                        context.trade_offs
+                    )
+                    stage_payload["dominant_tension"] = (
+                        context.trade_off_dominant_tension
+                    )
+                elif node_name == "adl_generation":
+                    stage_payload["block_count"] = len(context.adl_blocks)
+                    stage_payload["hard_count"] = sum(
+                        1 for b in context.adl_blocks
+                        if b.enforcement_level == "hard"
+                    )
+                    stage_payload["soft_count"] = sum(
+                        1 for b in context.adl_blocks
+                        if b.enforcement_level == "soft"
+                    )
+                    stage_payload["characteristics_covered"] = list({
+                        b.characteristic_enforced
+                        for b in context.adl_blocks
+                        if b.characteristic_enforced
+                    })
+                elif node_name == "weakness_analysis":
+                    stage_payload["weakness_count"] = len(
+                        context.weaknesses
+                    )
+                    stage_payload["most_critical"] = (
+                        context.weaknesses[0].get("id", "")
+                        if context.weaknesses
+                        else ""
                     )
 
                 yield _chunk(
@@ -203,9 +269,14 @@ async def run_pipeline(
             "similar_past_designs": context.similar_past_designs,
             "mermaid_component_diagram": context.mermaid_component_diagram,
             "mermaid_sequence_diagram": context.mermaid_sequence_diagram,
+            "diagrams": [d.model_dump() for d in context.diagrams],
             "trade_offs": context.trade_offs,
-            "adl_rules": context.adl_rules,
+            "trade_off_dominant_tension": context.trade_off_dominant_tension,
+            "adl_blocks_generated": len(context.adl_blocks),
+            "adl_rules": [b.model_dump() for b in context.adl_blocks],
+            "adl_document": context.adl_document,
             "weaknesses": context.weaknesses,
+            "weakness_summary": context.weakness_summary,
             "fmea_risks": context.fmea_risks,
             "review_findings": context.review_findings,
             "governance_score": context.governance_score,

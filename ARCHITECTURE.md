@@ -1,10 +1,9 @@
-# Architecture Definition Language — AI Architect Assistant
+# Architecture Guidlines for Copilot
 # Version: 1.0
 # Owner: Architecture Team
 # Last updated: 2025
 #
-# This file is the authoritative architecture governance document.
-# It defines structural rules, service boundaries, and invariants
+# This file defines structural rules, service boundaries, and invariants
 # that ALL code in this repository must conform to.
 #
 # Copilot and all AI coding assistants must treat this file as
@@ -15,9 +14,9 @@
 
 ## SYSTEM DEFINITION
 
-DEFINE system AIArchitectAssistant {
+DEFINE system ArchonAssistant {
   RESPONSIBILITY: "AI-powered architecture governance and design assistant"
-  SERVICES: [ai-architect-api, ai-architect-agent]
+  SERVICES: [ai-architect-api, ai-architect-agent, ai-architect-ui]
   DATABASES: [PostgreSQL, Qdrant]
   COMMUNICATION: [HTTP/SSE between client and api, HTTP/NDJSON between api and agent]
   DEPLOYMENT: Docker Compose (local), AKS (production)
@@ -38,7 +37,8 @@ DEFINE service ai-architect-api {
     POST /api/v1/chat/stream,
     GET /api/v1/sessions/{id}/messages,
     GET /api/v1/sessions/{id}/architecture,
-    GET /api/v1/sessions/{id}/diagram
+    GET /api/v1/sessions/{id}/diagram,
+    GET /api/v1/sessions/{id}/diagram/{type}
   ]
   CALLS: [ai-architect-agent via AgentHttpClient]
   ROOT_PACKAGE: com.aiarchitect.api
@@ -154,6 +154,39 @@ ASSERT ai-architect-agent {
   MUST keep prompt templates in app/prompts/ as .j2 (Jinja2) files
     — no raw prompt strings embedded in tool class bodies (Phase 2+)
     — tool classes MAY contain prompt strings only in Phase 1 stub code
+
+  MUST score all eight Richards architecture styles before selecting
+    — layered, modular monolith, microkernel, pipeline,
+      service-based, event-driven, microservices, space-based
+    — style_selection field must be present in architecture_design
+    — style_scores must contain all eight styles
+
+  MUST apply veto rules before finalising style selection
+    — a style may not be selected if a veto condition applies
+
+  MUST NOT default to layered architecture when scalability,
+  elasticity, or agility characteristics are present with
+  non-trivial measurable targets
+
+  MUST include when_to_reconsider_this_style in every design
+    — lists the observable conditions that would force a style
+      change as the system evolves
+
+  MUST generate between 3 and 5 diagrams per pipeline run
+    — never fewer than 3, never more than 5
+
+  MUST always generate c4_container, sequence_primary,
+  and sequence_error diagrams
+    — these three are mandatory regardless of architecture style
+
+  MUST select diagram types based on architecture style and
+  characteristics — not hardcoded
+
+  MUST NOT return diagrams with fewer than 10 non-empty lines
+    — shallow diagrams fail the minimum detail requirement
+
+  MUST NOT include ``` fence characters in mermaid_source fields
+    — source must be raw Mermaid syntax only
 }
 
 REQUIRE ai-architect-agent {
@@ -180,9 +213,73 @@ REQUIRE ai-architect-agent {
 
 ---
 
+## SERVICE: ai-architect-ui (React / Vite)
+
+DEFINE service ai-architect-ui {
+  LANGUAGE: TypeScript
+  FRAMEWORK: React 18, Vite, Tailwind CSS
+  RESPONSIBILITY: "Browser SPA — auth, streaming chat, architecture visualization, governance dashboard"
+  OWNS: [UI state (Zustand), views, components, hooks]
+  DOES_NOT_OWN: [Conversation persistence, pipeline logic, LLM calls, JWT issuance]
+  CONSUMES: [
+    POST /api/v1/auth/token,
+    POST /api/v1/chat/stream (SSE via fetch + ReadableStream),
+    GET /api/v1/sessions/{id}/architecture,
+    GET /api/v1/sessions/{id}/diagram,
+    GET /api/v1/sessions/{id}/adl,
+    GET /api/v1/sessions/{id}/trade-offs,
+    GET /api/v1/sessions/{id}/weaknesses
+  ]
+  ROOT_DIR: ai-architect-ui/src
+}
+
+ASSERT ai-architect-ui {
+  MUST use fetch + ReadableStream for the SSE streaming endpoint
+    — EventSource MUST NOT be used (POST body is required)
+
+  MUST proxy all API calls through relative /api/* paths
+    — MUST NOT reference localhost:8080 or any absolute backend URL in source code
+
+  MUST NOT store JWT in localStorage
+    — JWT is held only in Zustand in-memory state
+
+  MUST NOT perform fetch calls inside React components
+    — all HTTP calls live in src/api/ modules only
+
+  MUST render MermaidDiagram with error handling
+    — if mermaid.render() throws, display error + raw source fallback
+
+  MUST disable Submit button while streaming is in progress
+    — prevents duplicate pipeline runs
+
+  MUST handle unknown event types in handleEvent without throwing
+    — unknown types are silently ignored
+
+  MUST provide empty-state UI for all views when no data is loaded
+
+  MUST run as non-root user in the production Docker image
+}
+
+REQUIRE ai-architect-ui {
+  IF a new pipeline stage is added
+    THEN PIPELINE_STAGES array in src/types/api.ts MUST be updated
+    AND STAGE_LABELS in src/components/StageProgress.tsx MUST be updated
+
+  IF a new governance endpoint is added to the API
+    THEN a corresponding function MUST be added in src/api/governance.ts
+    AND the GovernanceView MUST add a tab for it
+
+  IF a new SSE event type is introduced
+    THEN handleEvent in the Zustand store MUST handle it
+    — unknown types are still silently ignored
+}
+
+
+---
+
 ## PIPELINE DEFINITION
 
-DEFINE pipeline ArchitectAssistantPipeline {
+DEFINE pipeline ArchonPipeline {
   ENTRY_POINT: POST /agent/stream
   STATE_OBJECT: ArchitectureContext
   MAX_ITERATIONS: 2
@@ -203,7 +300,7 @@ DEFINE pipeline ArchitectAssistantPipeline {
   ]
 }
 
-ASSERT ArchitectAssistantPipeline {
+ASSERT ArchonPipeline {
   MUST execute stages in order 1 → 8, then 9+10 in parallel, then 11
     — stage N MUST NOT begin until stage N-1 has written its output to ArchitectureContext
 

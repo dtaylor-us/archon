@@ -39,6 +39,15 @@ def mock_registry():
     mock_diagram_gen = AsyncMock()
     mock_diagram_gen.run = AsyncMock(side_effect=lambda ctx: ctx)
 
+    mock_trade_off = AsyncMock()
+    mock_trade_off.run = AsyncMock(side_effect=lambda ctx: ctx)
+
+    mock_adl = AsyncMock()
+    mock_adl.run = AsyncMock(side_effect=lambda ctx: ctx)
+
+    mock_weakness = AsyncMock()
+    mock_weakness.run = AsyncMock(side_effect=lambda ctx: ctx)
+
     return {
         "requirement_parser": mock_parser,
         "challenge_engine": mock_challenge,
@@ -47,6 +56,9 @@ def mock_registry():
         "conflict_analyzer": mock_conflict,
         "architecture_generator": mock_arch_gen,
         "diagram_generator": mock_diagram_gen,
+        "trade_off_engine": mock_trade_off,
+        "adl_generator": mock_adl,
+        "weakness_analyzer": mock_weakness,
     }
 
 
@@ -137,7 +149,7 @@ class TestAgentStreamEndpoint:
         ]
         stage_completes = [e for e in lines if e.get("type") == "STAGE_COMPLETE"]
         # Should have at least one STAGE_COMPLETE per pipeline stage
-        assert len(stage_completes) >= 11
+        assert len(stage_completes) >= 12
 
     async def test_stream_ends_with_complete_event(self, client: AsyncClient):
         """Response stream ends with COMPLETE event."""

@@ -1,0 +1,73 @@
+You are performing an architectural fragility analysis. Your job is
+to find problems in this design before they find the team in production.
+Be direct. Generic statements like "the system may have scaling issues"
+are not acceptable. Every weakness must name the specific component
+or interaction that is fragile and explain the precise failure mode.
+
+SYSTEM:
+{{ parsed_entities.get('domain', 'unknown') }} —
+{{ parsed_entities.get('system_type', 'unknown') }}
+
+ARCHITECTURE DESIGN:
+{{ architecture_design | tojson(indent=2) }}
+
+CHARACTERISTICS:
+{{ characteristics | tojson(indent=2) }}
+
+SCENARIOS:
+{{ scenarios | tojson(indent=2) }}
+
+TRADE-OFF DECISIONS:
+{{ trade_offs | tojson(indent=2) }}
+
+Answer these four questions systematically. Ground every answer in
+the specific components and interactions of this architecture.
+
+1. WHERE IS THIS ARCHITECTURE FRAGILE RIGHT NOW?
+   What fails under normal expected load that is not obvious from
+   the design? Single points of failure. Synchronous chains that
+   create cascading timeouts. Missing circuit breakers.
+
+2. WHAT BREAKS FIRST AT SCALE?
+   Use the large-scale scenario. Which specific component becomes
+   the bottleneck? What data store fills up or slows down first?
+   What queue grows unboundedly under peak load?
+
+3. LIKELY REDESIGN POINTS IN 12-18 MONTHS
+   What will the team be forced to rearchitect? What technical debt
+   does the current design create? Be specific about the trigger
+   condition that forces the redesign.
+
+4. OPERATIONAL WEAKNESSES
+   What is hardest to debug in production? What failure modes are
+   invisible until they cause an outage? What is missing from the
+   design that operations teams will ask for immediately?
+
+Return a JSON object with exactly this structure. No markdown, no preamble:
+{
+  "weaknesses": [
+    {
+      "id": "W-001",
+      "category": "fragility | scale_limit | redesign_point | operational",
+      "title": "string — short name for this weakness",
+      "component_affected": "string — specific component or interaction",
+      "description": "string — precise failure mode, not a vague concern",
+      "severity": 1-5,
+      "likelihood": 1-5,
+      "effort_to_fix": "days | weeks | months | rewrite",
+      "early_warning_signals": [
+        "string — observable metric or symptom that appears before failure"
+      ],
+      "mitigation": "string — specific remediation, not generic advice",
+      "linked_characteristic": "string — which architecture characteristic
+                                 this weakness threatens"
+    }
+  ],
+  "weakness_summary": "string — one paragraph naming the top two or three
+                        weaknesses the team should address first and why",
+  "most_critical": "string — the single weakness ID with highest combined
+                    severity and likelihood score"
+}
+
+Return between 4 and 10 weaknesses. Cover all four categories.
+Severity and likelihood are integers 1-5 where 5 is worst.
