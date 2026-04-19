@@ -69,15 +69,16 @@ def base_context():
 
 class TestPipelineOrdering:
 
-    def test_ordered_stages_has_11_entries(self):
-        """ORDERED_STAGES must have exactly 11 stages."""
-        assert len(ORDERED_STAGES) == 11
+    def test_ordered_stages_has_12_entries(self):
+        """ORDERED_STAGES must have exactly 12 stages."""
+        assert len(ORDERED_STAGES) == 12
 
-    def test_weakness_and_fmea_is_merged_stage(self):
-        """weakness_and_fmea is a single merged stage."""
-        assert "weakness_and_fmea" in ORDERED_STAGES
-        assert "weakness_analysis" not in ORDERED_STAGES
-        assert "fmea_analysis" not in ORDERED_STAGES
+    def test_weakness_and_fmea_are_separate_stages(self):
+        """weakness_analysis and fmea_analysis run as separate stages;
+        the merged weakness_and_fmea node must not appear in the ordered list."""
+        assert "weakness_analysis" in ORDERED_STAGES
+        assert "fmea_analysis" in ORDERED_STAGES
+        assert "weakness_and_fmea" not in ORDERED_STAGES
 
     def test_architecture_review_is_final_stage(self):
         """architecture_review must be the last stage."""
@@ -97,8 +98,8 @@ class TestPipelineStreaming:
         stage_starts = [c for c in chunks if c["type"] == "STAGE_START"]
         stage_completes = [c for c in chunks if c["type"] == "STAGE_COMPLETE"]
 
-        assert len(stage_starts) == 11
-        assert len(stage_completes) == 11
+        assert len(stage_starts) == 12
+        assert len(stage_completes) == 12
 
     async def test_ends_with_complete_event(self, base_context):
         last_chunk = None
@@ -241,7 +242,7 @@ class TestReiterationGate:
             chunks.append(json.loads(chunk))
 
         completes = [c for c in chunks if c["type"] == "STAGE_COMPLETE"]
-        assert len(completes) == 22  # 11 stages × 2 iterations
+        assert len(completes) == 24  # 12 stages × 2 iterations
 
     async def test_re_iterate_payload_includes_constraints(
         self, base_context, mock_review_agent,

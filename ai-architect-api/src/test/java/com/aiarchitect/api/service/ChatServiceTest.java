@@ -81,14 +81,17 @@ class ChatServiceTest {
                 .expectNextCount(2)
                 .verifyComplete();
 
-        // Verify assistant message saved in doOnComplete
-        verify(conversationService, times(2)).saveMessage(
+        // Verify assistant message saved in doOnComplete.
+        // Use timeout because saveMessage(ASSISTANT) is called inside
+        // CompletableFuture.runAsync() — it fires after the stream completes,
+        // on a separate thread. timeout() polls until the condition is met.
+        verify(conversationService, timeout(2000).times(2)).saveMessage(
                 any(), any(), any(), any());
         ArgumentCaptor<MessageRole> roleCaptor =
                 ArgumentCaptor.forClass(MessageRole.class);
         ArgumentCaptor<String> contentCaptor =
                 ArgumentCaptor.forClass(String.class);
-        verify(conversationService, times(2)).saveMessage(
+        verify(conversationService, timeout(2000).times(2)).saveMessage(
                 any(), roleCaptor.capture(), contentCaptor.capture(), any());
         assertEquals(MessageRole.ASSISTANT, roleCaptor.getAllValues().get(1));
         assertEquals("architecture overview", contentCaptor.getAllValues().get(1));

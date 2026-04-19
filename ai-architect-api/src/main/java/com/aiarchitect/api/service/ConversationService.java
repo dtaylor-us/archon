@@ -50,9 +50,10 @@ public class ConversationService {
 
     @Transactional(readOnly = true)
     public List<MessageDto> getRecentMessages(UUID conversationId, int limit) {
-        // Query fetches newest-first (DESC) to honour the limit, then we
-        // reverse so the caller receives messages in chronological order.
-        var recent = messageRepo.findRecentByConversationId(
+        // Query returns newest-first (DESC) — callers receive most recent
+        // messages at index 0, which is the expected contract for the messages
+        // endpoint (clients render top = latest and scroll up for history).
+        return messageRepo.findRecentByConversationId(
                         conversationId, PageRequest.of(0, limit))
                 .stream()
                 .map(m -> MessageDto.builder()
@@ -62,7 +63,6 @@ public class ConversationService {
                         .createdAt(m.getCreatedAt())
                         .build())
                 .toList();
-        return recent.reversed();
     }
 
     @Transactional(readOnly = true)

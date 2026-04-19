@@ -26,7 +26,8 @@ from app.pipeline.nodes import (
     diagram_generation,
     trade_off_analysis,
     adl_generation,
-    weakness_and_fmea,
+    weakness_analysis,
+    fmea_analysis,
     architecture_review,
 )
 
@@ -43,7 +44,11 @@ ORDERED_STAGES: list[str] = [
     "diagram_generation",
     "trade_off_analysis",
     "adl_generation",
-    "weakness_and_fmea",
+    # Stages 9 and 10 run sequentially in the graph; the asyncio.gather
+    # parallelism is handled inside the weakness_analysis node so that
+    # FMEA results are available when fmea_analysis emits its event.
+    "weakness_analysis",
+    "fmea_analysis",
     "architecture_review",
 ]
 
@@ -59,7 +64,8 @@ _NODE_FN_MAP = {
     "diagram_generation": diagram_generation,
     "trade_off_analysis": trade_off_analysis,
     "adl_generation": adl_generation,
-    "weakness_and_fmea": weakness_and_fmea,
+    "weakness_analysis": weakness_analysis,
+    "fmea_analysis": fmea_analysis,
     "architecture_review": architecture_review,
 }
 

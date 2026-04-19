@@ -10,7 +10,8 @@ export const PIPELINE_STAGES = [
   'diagram_generation',
   'trade_off_analysis',
   'adl_generation',
-  'weakness_and_fmea',
+  'weakness_analysis',
+  'fmea_analysis',
   'architecture_review',
 ] as const;
 
