@@ -15,7 +15,7 @@ describe('StageProgress', () => {
   it('renders_allTwelveStages', () => {
     render(<StageProgress stages={makeStages()} />);
     const container = screen.getByTestId('stage-progress');
-    expect(container.children).toHaveLength(12);
+    expect(container.children).toHaveLength(PIPELINE_STAGES.length);
   });
 
   it('displaysPendingIcon_forPendingStages', () => {
@@ -27,7 +27,7 @@ describe('StageProgress', () => {
 
   it('displaysRunningIcon_forRunningStages', () => {
     render(
-      <StageProgress stages={makeStages({ requirement_parsing: 'running' })} />,
+      <StageProgress stages={makeStages({ requirement_parsing: 'running' })} />, 
     );
     const stage = screen.getByTestId('stage-requirement_parsing');
     expect(stage).toHaveAttribute('data-status', 'running');
@@ -36,7 +36,7 @@ describe('StageProgress', () => {
 
   it('displaysCompleteIcon_forCompleteStages', () => {
     render(
-      <StageProgress stages={makeStages({ requirement_parsing: 'complete' })} />,
+      <StageProgress stages={makeStages({ requirement_parsing: 'complete' })} />, 
     );
     const stage = screen.getByTestId('stage-requirement_parsing');
     expect(stage).toHaveAttribute('data-status', 'complete');
@@ -45,7 +45,7 @@ describe('StageProgress', () => {
 
   it('displaysErrorIcon_forErrorStages', () => {
     render(
-      <StageProgress stages={makeStages({ scenario_modeling: 'error' })} />,
+      <StageProgress stages={makeStages({ scenario_modeling: 'error' })} />, 
     );
     const stage = screen.getByTestId('stage-scenario_modeling');
     expect(stage).toHaveAttribute('data-status', 'error');
