@@ -80,11 +80,28 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Get AKS credentials
+        shell: bash
         run: |
+          set -euo pipefail
+
+          if [[ -z "${{ secrets.AKS_CLUSTER_NAME }}" ]]; then
+            echo "::error::Missing secret: AKS_CLUSTER_NAME"
+            exit 1
+          fi
+          if [[ -z "${{ secrets.AZURE_RESOURCE_GROUP }}" ]]; then
+            echo "::error::Missing secret: AZURE_RESOURCE_GROUP"
+            exit 1
+          fi
+
           az aks get-credentials \
-            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --name ${{ secrets.AKS_CLUSTER_NAME }} \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
             --overwrite-existing
+
+      - name: Verify kubectl context
+        run: |
+          kubectl config current-context
+          kubectl cluster-info
 
       - uses: azure/setup-helm@v4
         with:
