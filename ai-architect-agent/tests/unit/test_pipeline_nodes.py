@@ -21,6 +21,8 @@ from app.pipeline.nodes import (
     init_registry,
     init_review_agent,
     PipelineState,
+    _stub_node,
+    _challenge_style_selection,
 )
 
 
@@ -214,3 +216,110 @@ class TestFmeaAndReviewNodes:
         result = await architecture_review(state)
 
         assert "context" in result
+
+    async def test_architecture_review_skips_llm_when_no_review_agent(
+        self, base_context: ArchitectureContext,
+    ):
+        """architecture_review() logs warning and skips LLM when agent is None."""
+        init_review_agent(None)
+        state: PipelineState = {"context": base_context}
+
+        result = await architecture_review(state)
+
+        assert "context" in result
+
+
+class TestStubNode:
+    """Tests for _stub_node pass-through."""
+
+    async def test_stub_node_returns_same_context(
+        self, base_context: ArchitectureContext,
+    ):
+        state: PipelineState = {"context": base_context}
+        result = await _stub_node(state)
+        assert result["context"] is base_context
+
+
+class TestChallengeStyleSelection:
+    """Tests for _challenge_style_selection deterministic logic."""
+
+    def _ctx_with_design(self, style_scores, selected, chars=None, scenarios=None):
+        ctx = ArchitectureContext(
+            raw_requirements="test",
+            architecture_design={
+                "style_selection": {
+                    "style_scores": style_scores,
+                    "selected_style": selected,
+                    "runner_up": "Event-Driven",
+                }
+            },
+            characteristics=chars or [],
+            scenarios=scenarios or [],
+        )
+        return ctx
+
+    def test_no_style_data_produces_challenged(self):
+        ctx = ArchitectureContext(raw_requirements="test")
+        result = _challenge_style_selection(ctx)
+        challenge = result.review_findings["style_selection_challenge"]
+        assert challenge["challenged"] is True
+        assert "missing" in challenge["reason"]
+
+    def test_top_characteristic_mismatch_challenges(self):
+        ctx = self._ctx_with_design(
+            style_scores=[{
+                "style": "Microservices",
+                "driving_characteristics": ["scalability"],
+            }],
+            selected="Microservices",
+            chars=[{"name": "availability"}, {"name": "scalability"}],
+        )
+        result = _challenge_style_selection(ctx)
+        challenge = result.review_findings["style_selection_challenge"]
+        assert challenge["challenged"] is True
+        assert "availability" in challenge["reason"]
+
+    def test_vetoed_without_reason_challenges(self):
+        ctx = self._ctx_with_design(
+            style_scores=[
+                {"style": "Microservices", "driving_characteristics": ["availability"]},
+                {"style": "Monolith", "vetoed": True, "veto_reason": None},
+            ],
+            selected="Microservices",
+            chars=[{"name": "availability"}],
+        )
+        result = _challenge_style_selection(ctx)
+        challenge = result.review_findings["style_selection_challenge"]
+        assert challenge["challenged"] is True
+
+    def test_large_scenario_with_monolithic_style_challenges(self):
+        ctx = self._ctx_with_design(
+            style_scores=[{
+                "style": "Layered",
+                "driving_characteristics": ["simplicity"],
+            }],
+            selected="Layered",
+            chars=[{"name": "simplicity"}],
+            scenarios=[{
+                "tier": "large",
+                "description": "10k concurrent users hitting checkout",
+            }],
+        )
+        result = _challenge_style_selection(ctx)
+        challenge = result.review_findings["style_selection_challenge"]
+        assert challenge["challenged"] is True
+        assert challenge["recommended_alternative"] == "Event-Driven"
+
+    def test_well_formed_selection_not_challenged(self):
+        ctx = self._ctx_with_design(
+            style_scores=[{
+                "style": "Microservices",
+                "driving_characteristics": ["availability", "scalability"],
+                "vetoed": False,
+            }],
+            selected="Microservices",
+            chars=[{"name": "availability"}, {"name": "scalability"}],
+        )
+        result = _challenge_style_selection(ctx)
+        challenge = result.review_findings["style_selection_challenge"]
+        assert challenge["challenged"] is False

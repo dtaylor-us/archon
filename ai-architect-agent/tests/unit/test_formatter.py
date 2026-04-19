@@ -323,7 +323,7 @@ class TestFmtChallenges:
     def test_clarifying_questions_plain_strings(self):
         ctx = ArchitectureContext(
             raw_requirements="test",
-            clarifying_questions=["What is peak TPS?"],
+            clarifying_questions=[{"question": "What is peak TPS?"}],
         )
         assert "What is peak TPS?" in "\n".join(_fmt_challenges(ctx))
 
