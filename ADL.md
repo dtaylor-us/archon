@@ -1,4 +1,4 @@
-# Architecture Definition Language — AI Architect Assistant
+# Architecture Definition Language — Archon
 
 This file defines the complete Architecture Definition Language (ADL) specification for the AI Architect Assistant system. Each ADL block encodes a structural constraint derived from the architecture governance rules in `ARCHITECTURE.md`. Blocks are machine-readable pseudo-code designed to be converted into executable fitness functions by an LLM, enabling continuous architectural conformance checking across the API Gateway, Agent Orchestration, and UI services.
 
