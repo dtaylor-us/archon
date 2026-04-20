@@ -181,5 +181,5 @@ keyVault:
       key: db-password
     - name: jwt-secret
       key: jwt-secret
-    - name: agent-internal-secret
+    - name: internal-secret
       key: agent-internal-secret
