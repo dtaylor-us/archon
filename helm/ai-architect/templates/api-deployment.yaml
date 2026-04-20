@@ -60,13 +60,13 @@ spec:
               port: {{ .Values.api.service.port }}
             initialDelaySeconds: 60
             periodSeconds: 30
-          {{- if .Values.keyvault.enabled }}
+          {{- if .Values.keyVault.enabled }}
           volumeMounts:
             - name: secrets-store
               mountPath: "/mnt/secrets-store"
               readOnly: true
           {{- end }}
-      {{- if .Values.keyvault.enabled }}
+      {{- if .Values.keyVault.enabled }}
       volumes:
         - name: secrets-store
           csi:

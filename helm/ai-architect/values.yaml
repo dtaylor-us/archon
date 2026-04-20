@@ -170,28 +170,16 @@ keyVault:
   vaultName: ""
   tenantId: ""
   userAssignedIdentityClientId: ""
-keyvault:
-  enabled: true
-  vaultName: archon-kv
-  tenantId: ""
-  clientId: ""
-  objects: |
-    array:
-      - |
-        objectName: openai-api-key
-        objectType: secret
-      - |
-        objectName: azure-openai-api-key
-        objectType: secret
-      - |
-        objectName: azure-openai-endpoint
-        objectType: secret
-      - |
-        objectName: db-password
-        objectType: secret
-      - |
-        objectName: jwt-secret
-        objectType: secret
-      - |
-        objectName: agent-internal-secret
-        objectType: secret
+  secrets:
+    - name: openai-api-key
+      key: openai-api-key
+    - name: azure-openai-api-key
+      key: azure-openai-api-key
+    - name: azure-openai-endpoint
+      key: azure-openai-endpoint
+    - name: db-password
+      key: db-password
+    - name: jwt-secret
+      key: jwt-secret
+    - name: agent-internal-secret
+      key: agent-internal-secret
