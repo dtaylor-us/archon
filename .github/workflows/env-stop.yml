@@ -134,6 +134,7 @@ jobs:
           set +e
           az rest \
             --method POST \
+            --output none \
             --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/stop?api-version=2023-10-01"
           set -e
           echo "Polling for Stopped state..."
@@ -186,6 +187,7 @@ jobs:
           set +e
           az rest \
             --method POST \
+            --output none \
             --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/stop?api-version=2023-06-01-preview"
           set -e
           echo "Polling for Stopped state..."
