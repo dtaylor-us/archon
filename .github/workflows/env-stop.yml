@@ -127,21 +127,24 @@ jobs:
 
       - name: "Stop AKS cluster"
         run: |
-          echo "Sending stop to AKS cluster ${{ secrets.AKS_CLUSTER_NAME }}"
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          NAME="${{ secrets.AKS_CLUSTER_NAME }}"
+          echo "Sending stop to AKS cluster ${NAME}"
           set +e
           az rest \
             --method POST \
-            --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.ContainerService/managedClusters/${{ secrets.AKS_CLUSTER_NAME }}/stop?api-version=2023-10-01"
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/stop?api-version=2023-10-01"
           set -e
           echo "Polling for Stopped state..."
           for i in $(seq 1 24); do
             STATE=$(az rest \
               --method GET \
-              --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.ContainerService/managedClusters/${{ secrets.AKS_CLUSTER_NAME }}?api-version=2023-10-01" \
+              --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}?api-version=2023-10-01" \
               --query "properties.powerState.code" \
               --output tsv 2>/dev/null || echo "Unknown")
-            echo "  [$i/24] AKS state: $STATE"
-            [ "$STATE" = "Stopped" ] && { echo "AKS cluster stopped successfully"; exit 0; }
+            echo "  [$i/24] AKS state: ${STATE}"
+            [ "${STATE}" = "Stopped" ] && { echo "AKS cluster stopped successfully"; exit 0; }
             sleep 30
           done
           echo "Warning: AKS did not reach Stopped state within 12 minutes"
@@ -176,21 +179,24 @@ jobs:
 
       - name: "Stop PostgreSQL flexible server"
         run: |
-          echo "Sending stop to PostgreSQL server ${{ secrets.AZURE_DB_SERVER_NAME }}"
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          NAME="${{ secrets.AZURE_DB_SERVER_NAME }}"
+          echo "Sending stop to PostgreSQL server ${NAME}"
           set +e
           az rest \
             --method POST \
-            --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${{ secrets.AZURE_DB_SERVER_NAME }}/stop?api-version=2023-06-01-preview"
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/stop?api-version=2023-06-01-preview"
           set -e
           echo "Polling for Stopped state..."
           for i in $(seq 1 18); do
             STATE=$(az rest \
               --method GET \
-              --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${{ secrets.AZURE_DB_SERVER_NAME }}?api-version=2023-06-01-preview" \
+              --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}?api-version=2023-06-01-preview" \
               --query "properties.state" \
               --output tsv 2>/dev/null || echo "Unknown")
-            echo "  [$i/18] PostgreSQL state: $STATE"
-            [ "$STATE" = "Stopped" ] && { echo "PostgreSQL server stopped successfully"; exit 0; }
+            echo "  [$i/18] PostgreSQL state: ${STATE}"
+            [ "${STATE}" = "Stopped" ] && { echo "PostgreSQL server stopped successfully"; exit 0; }
             sleep 20
           done
           echo "Warning: PostgreSQL did not reach Stopped state within 6 minutes"
