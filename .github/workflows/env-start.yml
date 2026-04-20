@@ -213,6 +213,15 @@ jobs:
             --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
             --name "${{ secrets.AKS_CLUSTER_NAME }}" \
             --overwrite-existing
+          echo "Waiting for API server to become reachable..."
+          for i in $(seq 1 20); do
+            if kubectl get nodes --request-timeout=10s >/dev/null 2>&1; then
+              echo "API server reachable after $i attempt(s)"
+              break
+            fi
+            echo "  [$i/20] API server not yet reachable, retrying in 15s..."
+            sleep 15
+          done
           echo "Waiting for all nodes to be Ready..."
           kubectl wait nodes \
             --all \
@@ -251,6 +260,15 @@ jobs:
             --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
             --name "${{ secrets.AKS_CLUSTER_NAME }}" \
             --overwrite-existing
+          echo "Waiting for API server to become reachable..."
+          for i in $(seq 1 20); do
+            if kubectl get nodes --request-timeout=10s >/dev/null 2>&1; then
+              echo "API server reachable after $i attempt(s)"
+              break
+            fi
+            echo "  [$i/20] API server not yet reachable, retrying in 15s..."
+            sleep 15
+          done
 
       - name: "Restart API deployment"
         run: |
