@@ -57,6 +57,9 @@ agent:
     - name: OPENAI_API_KEY
       secretName: archon-secrets
       secretKey: openai-api-key
+    - name: INTERNAL_SECRET
+      secretName: archon-secrets
+      secretKey: agent-internal-secret
 
 # ── API (Spring Boot) ───────────────────────────────────────────
 api:
