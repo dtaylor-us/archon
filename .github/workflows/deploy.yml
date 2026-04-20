@@ -41,6 +41,20 @@ jobs:
       - name: ACR login
         run: az acr login --name ${{ secrets.ACR_NAME }}
 
+      - name: Validate ACR settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${{ secrets.ACR_LOGIN_SERVER }}" ]]; then
+            echo "::error::Missing secret: ACR_LOGIN_SERVER (e.g. myregistry.azurecr.io)"
+            exit 1
+          fi
+          if [[ "${{ secrets.ACR_LOGIN_SERVER }}" == http* ]]; then
+            echo "::error::ACR_LOGIN_SERVER must not include http(s):// — value should be myregistry.azurecr.io"
+            exit 1
+          fi
+          echo "ACR_LOGIN_SERVER=${{ secrets.ACR_LOGIN_SERVER }}"
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Build and push API
