@@ -191,22 +191,56 @@ jobs:
             echo "Release is not in a pending state; no recovery needed."
           fi
 
-      - name: Preflight - CSI driver and secrets
+      - name: Bootstrap cluster prerequisites
         run: |
           set -euo pipefail
-          echo "=== Checking Secrets Store CSI driver ==="
-          kubectl get csidriver secrets-store.csi.k8s.io || {
-            echo "::error::Secrets Store CSI driver not installed. Install it before deploying."
-            exit 1
-          }
-          echo "=== Checking SecretProviderClass ==="
-          kubectl -n ai-architect get secretproviderclass ai-architect-secrets 2>/dev/null \
-            && echo "SecretProviderClass ai-architect-secrets exists." \
-            || echo "::warning::SecretProviderClass ai-architect-secrets not found — it will be created by this Helm release."
-          echo "=== Checking archon-secrets ==="
-          kubectl -n ai-architect get secret archon-secrets 2>/dev/null \
+
+          # ── Secrets Store CSI driver ──────────────────────────────────────
+          echo "=== Secrets Store CSI driver ==="
+          if kubectl get csidriver secrets-store.csi.k8s.io &>/dev/null; then
+            echo "CSI driver already present."
+          else
+            echo "CSI driver missing — installing via Helm..."
+            helm repo add csi-secrets-store-provider-azure \
+              https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
+            helm repo update
+            helm upgrade --install csi-secrets-store-provider-azure \
+              csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
+              --namespace kube-system \
+              --wait --timeout 5m
+            echo "CSI driver installed."
+          fi
+
+          # ── cert-manager ClusterIssuer ────────────────────────────────────
+          echo "=== cert-manager ClusterIssuer ==="
+          if kubectl get clusterissuer letsencrypt-prod &>/dev/null; then
+            echo "ClusterIssuer letsencrypt-prod already exists."
+          else
+            echo "Creating ClusterIssuer letsencrypt-prod..."
+            kubectl apply -f - <<'EOF'
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: letsencrypt-prod
+          spec:
+            acme:
+              server: https://acme-v02.api.letsencrypt.org/directory
+              email: ${{ secrets.CERT_MANAGER_EMAIL || 'admin@example.com' }}
+              privateKeySecretRef:
+                name: letsencrypt-prod
+              solvers:
+                - http01:
+                    ingress:
+                      class: nginx
+          EOF
+            echo "ClusterIssuer created."
+          fi
+
+          # ── archon-secrets status (informational) ─────────────────────────
+          echo "=== archon-secrets ==="
+          kubectl -n ai-architect get secret archon-secrets &>/dev/null \
             && echo "Secret archon-secrets exists." \
-            || echo "::warning::Secret archon-secrets not found — it will be synced by the CSI driver after pod mount."
+            || echo "Secret archon-secrets not yet present — will be synced by CSI driver after first pod mount."
 
       - name: Deploy Helm chart
         run: |

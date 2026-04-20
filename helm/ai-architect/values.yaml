@@ -3,6 +3,20 @@ global:
   imageRegistry: ""
   imagePullSecrets: []
 
+# ── Bootstrap secrets (for initial environment bring-up only) ──────
+# When keyVault.enabled=true this should stay false — secrets are synced
+# by the CSI driver. Enable only when Key Vault CSI is not yet available,
+# e.g. the very first deploy into a fresh cluster.
+# Never commit real values here; pass them via --set at deploy time.
+bootstrapSecrets:
+  create: false
+  openaiApiKey: ""
+  azureOpenaiApiKey: ""
+  azureOpenaiEndpoint: ""
+  dbPassword: ""
+  jwtSecret: ""
+  agentInternalSecret: ""
+
 # ── Agent (Python / FastAPI) ─────────────────────────────────────
 agent:
   replicaCount: 2

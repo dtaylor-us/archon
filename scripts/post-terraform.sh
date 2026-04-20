@@ -90,6 +90,39 @@ helm upgrade --install cert-manager jetstack/cert-manager \
 
 success "cert-manager installed."
 
+# ─── Step 4b: Create cert-manager ClusterIssuer ───────────────────────────────
+header "Step 4b — Creating cert-manager ClusterIssuer"
+
+if kubectl get clusterissuer letsencrypt-prod &>/dev/null; then
+  success "ClusterIssuer 'letsencrypt-prod' already exists."
+else
+  # Require an email for Let's Encrypt registration.
+  CERT_EMAIL="${CERT_EMAIL:-}"
+  if [[ -z "$CERT_EMAIL" ]]; then
+    error "CERT_EMAIL environment variable is not set."
+    error "Set it to your email address and re-run: export CERT_EMAIL=you@example.com"
+    exit 1
+  fi
+
+  kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ${CERT_EMAIL}
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+EOF
+  success "ClusterIssuer 'letsencrypt-prod' created."
+fi
+
 # ─── Step 5: Install Azure Key Vault CSI driver ───────────────────────────────
 header "Step 5 — Installing Azure Key Vault CSI driver"
 
