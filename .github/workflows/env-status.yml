@@ -48,33 +48,28 @@ jobs:
       - name: "AKS cluster state"
         run: |
           echo "=== AKS Cluster ==="
-          az aks show \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
-            --query '{name:name, state:powerState.code,
-                      kubernetesVersion:kubernetesVersion,
-                      nodeCount:agentPoolProfiles[0].count}' \
+          az rest \
+            --method GET \
+            --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.ContainerService/managedClusters/${{ secrets.AKS_CLUSTER_NAME }}?api-version=2023-10-01" \
+            --query '{name:name,state:properties.powerState.code,kubernetesVersion:properties.kubernetesVersion,nodeCount:properties.agentPoolProfiles[0].count}' \
             --output table
 
       - name: "AKS node pool states"
         run: |
           echo "=== Node Pools ==="
-          az aks nodepool list \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --cluster-name "${{ secrets.AKS_CLUSTER_NAME }}" \
-            --query '[].{name:name, state:powerState.code,
-                         vmSize:vmSize, count:count,
-                         minCount:minCount, maxCount:maxCount}' \
+          az rest \
+            --method GET \
+            --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.ContainerService/managedClusters/${{ secrets.AKS_CLUSTER_NAME }}/agentPools?api-version=2023-10-01" \
+            --query 'value[].{name:name,state:properties.powerState.code,vmSize:properties.vmSize,count:properties.count,minCount:properties.minCount,maxCount:properties.maxCount}' \
             --output table
 
       - name: "PostgreSQL server state"
         run: |
           echo "=== PostgreSQL Server ==="
-          az postgres flexible-server show \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AZURE_DB_SERVER_NAME }}" \
-            --query '{name:name, state:state,
-                      sku:sku.name, location:location}' \
+          az rest \
+            --method GET \
+            --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${{ secrets.AZURE_DB_SERVER_NAME }}?api-version=2023-06-01-preview" \
+            --query '{name:name,state:properties.state,sku:sku.name,location:location}' \
             --output table
 
       - name: "Container registry and recent images"

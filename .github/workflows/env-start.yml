@@ -81,10 +81,10 @@ jobs:
       - name: "Get AKS cluster power state"
         id: aks_state
         run: |
-          STATE=$(az aks show \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
-            --query powerState.code \
+          STATE=$(az rest \
+            --method GET \
+            --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.ContainerService/managedClusters/${{ secrets.AKS_CLUSTER_NAME }}?api-version=2023-10-01" \
+            --query properties.powerState.code \
             --output tsv 2>/dev/null || echo "Unknown")
           echo "state=$STATE" >> "$GITHUB_OUTPUT"
           echo "AKS current state: $STATE"
@@ -92,10 +92,10 @@ jobs:
       - name: "Get PostgreSQL server state"
         id: db_state
         run: |
-          STATE=$(az postgres flexible-server show \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AZURE_DB_SERVER_NAME }}" \
-            --query state \
+          STATE=$(az rest \
+            --method GET \
+            --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${{ secrets.AZURE_DB_SERVER_NAME }}?api-version=2023-06-01-preview" \
+            --query properties.state \
             --output tsv 2>/dev/null || echo "Unknown")
           echo "state=$STATE" >> "$GITHUB_OUTPUT"
           echo "PostgreSQL current state: $STATE"
@@ -133,11 +133,11 @@ jobs:
         run: |
           echo "Waiting for PostgreSQL to become ready..."
           for i in $(seq 1 30); do
-            STATE=$(az postgres flexible-server show \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ secrets.AZURE_DB_SERVER_NAME }}" \
-              --query state \
-              --output tsv)
+            STATE=$(az rest \
+              --method GET \
+              --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${{ secrets.AZURE_DB_SERVER_NAME }}?api-version=2023-06-01-preview" \
+              --query properties.state \
+              --output tsv 2>/dev/null || echo "Unknown")
             echo "Attempt $i/30 — PostgreSQL state: $STATE"
             if [ "$STATE" = "Ready" ]; then
               echo "PostgreSQL is ready"
@@ -181,13 +181,21 @@ jobs:
         timeout-minutes: 10
         run: |
           echo "Waiting for AKS cluster to reach Running state..."
-          az aks wait \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
-            --updated \
-            --interval 30 \
-            --timeout 600
-          echo "AKS cluster is running"
+          for i in $(seq 1 20); do
+            STATE=$(az rest \
+              --method GET \
+              --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.ContainerService/managedClusters/${{ secrets.AKS_CLUSTER_NAME }}?api-version=2023-10-01" \
+              --query properties.powerState.code \
+              --output tsv 2>/dev/null || echo "Unknown")
+            echo "Attempt $i/20 — AKS state: $STATE"
+            if [ "$STATE" = "Running" ]; then
+              echo "AKS cluster is running"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "Error: AKS did not reach Running state within 10 minutes"
+          exit 1
 
       - name: "Verify all Kubernetes nodes are Ready"
         run: |

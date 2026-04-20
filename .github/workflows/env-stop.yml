@@ -85,10 +85,13 @@ jobs:
       - name: "Get AKS cluster power state"
         id: aks_state
         run: |
-          STATE=$(az aks show \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
-            --query powerState.code \
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          NAME="${{ secrets.AKS_CLUSTER_NAME }}"
+          STATE=$(az rest \
+            --method GET \
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}?api-version=2023-10-01" \
+            --query "properties.powerState.code" \
             --output tsv 2>/dev/null || echo "Unknown")
           echo "state=$STATE" >> "$GITHUB_OUTPUT"
           echo "AKS current state: $STATE"
@@ -96,10 +99,13 @@ jobs:
       - name: "Get PostgreSQL server state"
         id: db_state
         run: |
-          STATE=$(az postgres flexible-server show \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AZURE_DB_SERVER_NAME }}" \
-            --query state \
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          NAME="${{ secrets.AZURE_DB_SERVER_NAME }}"
+          STATE=$(az rest \
+            --method GET \
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}?api-version=2023-06-01-preview" \
+            --query "properties.state" \
             --output tsv 2>/dev/null || echo "Unknown")
           echo "state=$STATE" >> "$GITHUB_OUTPUT"
           echo "PostgreSQL current state: $STATE"
@@ -121,17 +127,21 @@ jobs:
 
       - name: "Stop AKS cluster"
         run: |
-          echo "Stopping AKS cluster ${{ secrets.AKS_CLUSTER_NAME }}"
-          az aks stop \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
-            --no-wait || echo "Stop command returned non-zero (may already be stopping/stopped)"
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          NAME="${{ secrets.AKS_CLUSTER_NAME }}"
+          echo "Sending stop to AKS cluster $NAME"
+          az rest \
+            --method POST \
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/stop?api-version=2023-10-01" \
+            --body '{}' || echo "Stop request returned non-zero (may already be stopping/stopped)"
           echo "Polling for Stopped state..."
           for i in $(seq 1 24); do
-            STATE=$(az aks show \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ secrets.AKS_CLUSTER_NAME }}" \
-              --query powerState.code --output tsv 2>/dev/null || echo "Unknown")
+            STATE=$(az rest \
+              --method GET \
+              --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}?api-version=2023-10-01" \
+              --query "properties.powerState.code" \
+              --output tsv 2>/dev/null || echo "Unknown")
             echo "  [$i/24] AKS state: $STATE"
             [ "$STATE" = "Stopped" ] && { echo "AKS cluster stopped successfully"; exit 0; }
             sleep 30
@@ -140,10 +150,13 @@ jobs:
 
       - name: "Verify AKS power state after stop"
         run: |
-          STATE=$(az aks show \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
-            --query powerState.code \
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          NAME="${{ secrets.AKS_CLUSTER_NAME }}"
+          STATE=$(az rest \
+            --method GET \
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}?api-version=2023-10-01" \
+            --query "properties.powerState.code" \
             --output tsv 2>/dev/null || echo "Unknown")
           echo "AKS final state: $STATE"
 
@@ -165,16 +178,21 @@ jobs:
 
       - name: "Stop PostgreSQL flexible server"
         run: |
-          echo "Stopping PostgreSQL server ${{ secrets.AZURE_DB_SERVER_NAME }}"
-          az postgres flexible-server stop \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AZURE_DB_SERVER_NAME }}" || echo "Stop command returned non-zero (may already be stopping/stopped)"
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          NAME="${{ secrets.AZURE_DB_SERVER_NAME }}"
+          echo "Sending stop to PostgreSQL server $NAME"
+          az rest \
+            --method POST \
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/stop?api-version=2023-06-01-preview" \
+            --body '{}' || echo "Stop request returned non-zero (may already be stopping/stopped)"
           echo "Polling for Stopped state..."
           for i in $(seq 1 18); do
-            STATE=$(az postgres flexible-server show \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ secrets.AZURE_DB_SERVER_NAME }}" \
-              --query state --output tsv 2>/dev/null || echo "Unknown")
+            STATE=$(az rest \
+              --method GET \
+              --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}?api-version=2023-06-01-preview" \
+              --query "properties.state" \
+              --output tsv 2>/dev/null || echo "Unknown")
             echo "  [$i/18] PostgreSQL state: $STATE"
             [ "$STATE" = "Stopped" ] && { echo "PostgreSQL server stopped successfully"; exit 0; }
             sleep 20
@@ -183,10 +201,13 @@ jobs:
 
       - name: "Verify PostgreSQL state after stop"
         run: |
-          STATE=$(az postgres flexible-server show \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AZURE_DB_SERVER_NAME }}" \
-            --query state \
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          NAME="${{ secrets.AZURE_DB_SERVER_NAME }}"
+          STATE=$(az rest \
+            --method GET \
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}?api-version=2023-06-01-preview" \
+            --query "properties.state" \
             --output tsv 2>/dev/null || echo "Unknown")
           echo "PostgreSQL final state: $STATE"
 
