@@ -122,11 +122,15 @@ jobs:
       - name: "Start PostgreSQL flexible server"
         id: start
         run: |
-          echo "Starting PostgreSQL server ${{ secrets.AZURE_DB_SERVER_NAME }}..."
-          az postgres flexible-server start \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AZURE_DB_SERVER_NAME }}" \
-            --no-wait
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          NAME="${{ secrets.AZURE_DB_SERVER_NAME }}"
+          echo "Starting PostgreSQL server $NAME..."
+          az rest \
+            --method POST \
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/start?api-version=2023-06-01-preview" \
+            --headers "Content-Type=application/json" \
+            || echo "Start request returned non-zero (may already be starting/running)"
 
       - name: "Wait for PostgreSQL to become Ready"
         timeout-minutes: 5
@@ -170,11 +174,15 @@ jobs:
       - name: "Start AKS cluster"
         id: start
         run: |
-          echo "Starting AKS cluster ${{ secrets.AKS_CLUSTER_NAME }}..."
-          az aks start \
-            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
-            --no-wait
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          NAME="${{ secrets.AKS_CLUSTER_NAME }}"
+          echo "Starting AKS cluster $NAME..."
+          az rest \
+            --method POST \
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/start?api-version=2023-10-01" \
+            --headers "Content-Type=application/json" \
+            || echo "Start request returned non-zero (may already be starting/running)"
           echo "AKS start signal sent"
 
       - name: "Wait for AKS cluster to reach Running state"

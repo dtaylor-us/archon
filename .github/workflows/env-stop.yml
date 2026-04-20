@@ -134,7 +134,8 @@ jobs:
           az rest \
             --method POST \
             --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/stop?api-version=2023-10-01" \
-            --body '{}' || echo "Stop request returned non-zero (may already be stopping/stopped)"
+            --headers "Content-Type=application/json" \
+            || echo "Stop request returned non-zero (may already be stopping/stopped)"
           echo "Polling for Stopped state..."
           for i in $(seq 1 24); do
             STATE=$(az rest \
@@ -185,7 +186,8 @@ jobs:
           az rest \
             --method POST \
             --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/stop?api-version=2023-06-01-preview" \
-            --body '{}' || echo "Stop request returned non-zero (may already be stopping/stopped)"
+            --headers "Content-Type=application/json" \
+            || echo "Stop request returned non-zero (may already be stopping/stopped)"
           echo "Polling for Stopped state..."
           for i in $(seq 1 18); do
             STATE=$(az rest \
