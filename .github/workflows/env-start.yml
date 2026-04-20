@@ -125,7 +125,8 @@ jobs:
           echo "Starting PostgreSQL server ${{ secrets.AZURE_DB_SERVER_NAME }}..."
           az postgres flexible-server start \
             --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AZURE_DB_SERVER_NAME }}"
+            --name "${{ secrets.AZURE_DB_SERVER_NAME }}" \
+            --no-wait
 
       - name: "Wait for PostgreSQL to become Ready"
         timeout-minutes: 5
@@ -172,8 +173,9 @@ jobs:
           echo "Starting AKS cluster ${{ secrets.AKS_CLUSTER_NAME }}..."
           az aks start \
             --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AKS_CLUSTER_NAME }}"
-          echo "AKS start command completed"
+            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
+            --no-wait
+          echo "AKS start signal sent"
 
       - name: "Wait for AKS cluster to reach Running state"
         timeout-minutes: 10
