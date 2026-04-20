@@ -52,7 +52,7 @@ agent:
     OTEL_SERVICE_NAME: "archon-agent"
     OTEL_TRACES_SAMPLER: "parentbased_traceidratio"
     OTEL_TRACES_SAMPLER_ARG: "0.1"
-    LLM_PROVIDER: "azure"
+    LLM_PROVIDER: "openai"
   # Secret references — actual values sourced from Key Vault CSI
   secretEnv:
     - name: OPENAI_API_KEY
