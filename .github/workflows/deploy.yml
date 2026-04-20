@@ -167,6 +167,47 @@ jobs:
         with:
           version: "3.14.0"
 
+      - name: Unstick Helm release if pending
+        run: |
+          set -euo pipefail
+          ns=ai-architect
+          rel=ai-architect
+
+          status=$(helm -n "$ns" status "$rel" -o json 2>/dev/null | jq -r '.info.status' || true)
+          echo "Helm release status: ${status:-<none>}"
+
+          if [[ "$status" == "pending-install" || "$status" == "pending-upgrade" || "$status" == "pending-rollback" ]]; then
+            echo "Release is stuck in '${status}'; attempting recovery..."
+            rev=$(helm -n "$ns" history "$rel" -o json 2>/dev/null \
+              | jq -r '[.[] | select(.status=="deployed")][-1].revision // empty' || true)
+            if [[ -n "$rev" && "$rev" != "null" ]]; then
+              echo "Rolling back to last deployed revision ${rev}..."
+              helm -n "$ns" rollback "$rel" "$rev" --wait --timeout 20m
+            else
+              echo "No deployed revision found; uninstalling stuck release..."
+              helm -n "$ns" uninstall "$rel" --wait || true
+            fi
+          else
+            echo "Release is not in a pending state; no recovery needed."
+          fi
+
+      - name: Preflight - CSI driver and secrets
+        run: |
+          set -euo pipefail
+          echo "=== Checking Secrets Store CSI driver ==="
+          kubectl get csidriver secrets-store.csi.k8s.io || {
+            echo "::error::Secrets Store CSI driver not installed. Install it before deploying."
+            exit 1
+          }
+          echo "=== Checking SecretProviderClass ==="
+          kubectl -n ai-architect get secretproviderclass ai-architect-secrets 2>/dev/null \
+            && echo "SecretProviderClass ai-architect-secrets exists." \
+            || echo "::warning::SecretProviderClass ai-architect-secrets not found — it will be created by this Helm release."
+          echo "=== Checking archon-secrets ==="
+          kubectl -n ai-architect get secret archon-secrets 2>/dev/null \
+            && echo "Secret archon-secrets exists." \
+            || echo "::warning::Secret archon-secrets not found — it will be synced by the CSI driver after pod mount."
+
       - name: Deploy Helm chart
         run: |
           helm upgrade --install ai-architect helm/ai-architect/ \
