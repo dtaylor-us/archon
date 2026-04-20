@@ -38,5 +38,5 @@ spec:
               service:
                 name: {{ .Release.Name }}-ui
                 port:
-                  number: 80
+                  number: {{ .Values.ui.service.port }}
 {{- end }}
