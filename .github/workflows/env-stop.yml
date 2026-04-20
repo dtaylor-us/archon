@@ -137,9 +137,9 @@ jobs:
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Length: 0" \
-            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/stop?api-version=2023-10-01")
+            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/stop?api-version=2023-10-01" || echo "000")
           echo "Stop HTTP status: $HTTP"
-          [[ "$HTTP" =~ ^2|^202 ]] || echo "Stop returned $HTTP (may already be stopping/stopped)"
+          case "$HTTP" in 2*|202) ;; *) echo "Stop returned $HTTP (may already be stopping/stopped)" ;; esac
           echo "Polling for Stopped state..."
           for i in $(seq 1 24); do
             STATE=$(az rest \
@@ -193,9 +193,9 @@ jobs:
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Length: 0" \
-            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/stop?api-version=2023-06-01-preview")
+            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/stop?api-version=2023-06-01-preview" || echo "000")
           echo "Stop HTTP status: $HTTP"
-          [[ "$HTTP" =~ ^2|^202 ]] || echo "Stop returned $HTTP (may already be stopping/stopped)"
+          case "$HTTP" in 2*|202) ;; *) echo "Stop returned $HTTP (may already be stopping/stopped)" ;; esac
           echo "Polling for Stopped state..."
           for i in $(seq 1 18); do
             STATE=$(az rest \

@@ -132,9 +132,9 @@ jobs:
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Length: 0" \
-            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/start?api-version=2023-06-01-preview")
+            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/start?api-version=2023-06-01-preview" || echo "000")
           echo "Start HTTP status: $HTTP"
-          [[ "$HTTP" =~ ^2|^202 ]] || echo "Start returned $HTTP (may already be starting/running)"
+          case "$HTTP" in 2*|202) ;; *) echo "Start returned $HTTP (may already be starting/running)" ;; esac
 
       - name: "Wait for PostgreSQL to become Ready"
         timeout-minutes: 5
@@ -188,9 +188,9 @@ jobs:
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Length: 0" \
-            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/start?api-version=2023-10-01")
+            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/start?api-version=2023-10-01" || echo "000")
           echo "Start HTTP status: $HTTP"
-          [[ "$HTTP" =~ ^2|^202 ]] || echo "Start returned $HTTP (may already be starting/running)"
+          case "$HTTP" in 2*|202) ;; *) echo "Start returned $HTTP (may already be starting/running)" ;; esac
           echo "AKS start signal sent"
 
       - name: "Wait for AKS cluster to reach Running state"
