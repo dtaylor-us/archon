@@ -132,13 +132,17 @@ helm repo add csi-secrets-store-provider-azure \
   https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
 helm repo update
 
-info "Installing/upgrading core Secrets Store CSI driver..."
-helm upgrade --install secrets-store-csi-driver \
-  secrets-store-csi-driver/secrets-store-csi-driver \
-  --namespace kube-system \
-  --set syncSecret.enabled=true \
-  --wait --timeout 10m
-success "Core CSI driver installed."
+if kubectl get csidriver secrets-store.csi.k8s.io &>/dev/null; then
+  success "CSI driver already registered (AKS add-on) — skipping core driver install."
+else
+  info "Installing core Secrets Store CSI driver..."
+  helm upgrade --install secrets-store-csi-driver \
+    secrets-store-csi-driver/secrets-store-csi-driver \
+    --namespace kube-system \
+    --set syncSecret.enabled=true \
+    --wait --timeout 10m
+  success "Core CSI driver installed."
+fi
 
 info "Installing/upgrading Azure Key Vault provider..."
 helm upgrade --install csi-secrets-store-provider-azure \
