@@ -126,20 +126,34 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: "Stop AKS cluster"
+        env:
+          SUB: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          NAME: ${{ secrets.AKS_CLUSTER_NAME }}
         run: |
-          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
-          NAME="${{ secrets.AKS_CLUSTER_NAME }}"
           echo "Sending stop to AKS cluster $NAME"
-          TOKEN=$(az account get-access-token \
-            --resource https://management.azure.com \
-            --query accessToken --output tsv)
-          HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Length: 0" \
-            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/stop?api-version=2023-10-01" || echo "000")
-          echo "Stop HTTP status: $HTTP"
-          case "$HTTP" in 2*|202) ;; *) echo "Stop returned $HTTP (may already be stopping/stopped)" ;; esac
+          python3 - <<'PYEOF'
+import subprocess, json, urllib.request, urllib.error, os
+sub  = os.environ['SUB']
+rg   = os.environ['RG']
+name = os.environ['NAME']
+result = subprocess.run(
+    ['az', 'account', 'get-access-token',
+     '--resource', 'https://management.azure.com', '--output', 'json'],
+    capture_output=True, text=True, check=True)
+token = json.loads(result.stdout)['accessToken']
+url = (f'https://management.azure.com/subscriptions/{sub}/resourceGroups/{rg}'
+       f'/providers/Microsoft.ContainerService/managedClusters/{name}'
+       f'/stop?api-version=2023-10-01')
+req = urllib.request.Request(url, data=b'', method='POST')
+req.add_header('Authorization', f'Bearer {token}')
+req.add_header('Content-Length', '0')
+try:
+    resp = urllib.request.urlopen(req)
+    print(f'Stop HTTP status: {resp.status}')
+except urllib.error.HTTPError as e:
+    print(f'Stop HTTP status: {e.code} ({e.reason}) — may already be stopping/stopped')
+PYEOF
           echo "Polling for Stopped state..."
           for i in $(seq 1 24); do
             STATE=$(az rest \
@@ -182,20 +196,34 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: "Stop PostgreSQL flexible server"
+        env:
+          SUB: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          NAME: ${{ secrets.AZURE_DB_SERVER_NAME }}
         run: |
-          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-          RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
-          NAME="${{ secrets.AZURE_DB_SERVER_NAME }}"
           echo "Sending stop to PostgreSQL server $NAME"
-          TOKEN=$(az account get-access-token \
-            --resource https://management.azure.com \
-            --query accessToken --output tsv)
-          HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Length: 0" \
-            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/stop?api-version=2023-06-01-preview" || echo "000")
-          echo "Stop HTTP status: $HTTP"
-          case "$HTTP" in 2*|202) ;; *) echo "Stop returned $HTTP (may already be stopping/stopped)" ;; esac
+          python3 - <<'PYEOF'
+import subprocess, json, urllib.request, urllib.error, os
+sub  = os.environ['SUB']
+rg   = os.environ['RG']
+name = os.environ['NAME']
+result = subprocess.run(
+    ['az', 'account', 'get-access-token',
+     '--resource', 'https://management.azure.com', '--output', 'json'],
+    capture_output=True, text=True, check=True)
+token = json.loads(result.stdout)['accessToken']
+url = (f'https://management.azure.com/subscriptions/{sub}/resourceGroups/{rg}'
+       f'/providers/Microsoft.DBforPostgreSQL/flexibleServers/{name}'
+       f'/stop?api-version=2023-06-01-preview')
+req = urllib.request.Request(url, data=b'', method='POST')
+req.add_header('Authorization', f'Bearer {token}')
+req.add_header('Content-Length', '0')
+try:
+    resp = urllib.request.urlopen(req)
+    print(f'Stop HTTP status: {resp.status}')
+except urllib.error.HTTPError as e:
+    print(f'Stop HTTP status: {e.code} ({e.reason}) — may already be stopping/stopped')
+PYEOF
           echo "Polling for Stopped state..."
           for i in $(seq 1 18); do
             STATE=$(az rest \
