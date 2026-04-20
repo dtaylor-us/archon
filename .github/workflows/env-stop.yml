@@ -131,11 +131,15 @@ jobs:
           RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
           NAME="${{ secrets.AKS_CLUSTER_NAME }}"
           echo "Sending stop to AKS cluster $NAME"
-          az rest \
-            --method POST \
-            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/stop?api-version=2023-10-01" \
-            --headers "Content-Type=application/json" \
-            || echo "Stop request returned non-zero (may already be stopping/stopped)"
+          TOKEN=$(az account get-access-token \
+            --resource https://management.azure.com \
+            --query accessToken --output tsv)
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Length: 0" \
+            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/stop?api-version=2023-10-01")
+          echo "Stop HTTP status: $HTTP"
+          [[ "$HTTP" =~ ^2|^202 ]] || echo "Stop returned $HTTP (may already be stopping/stopped)"
           echo "Polling for Stopped state..."
           for i in $(seq 1 24); do
             STATE=$(az rest \
@@ -183,11 +187,15 @@ jobs:
           RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
           NAME="${{ secrets.AZURE_DB_SERVER_NAME }}"
           echo "Sending stop to PostgreSQL server $NAME"
-          az rest \
-            --method POST \
-            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/stop?api-version=2023-06-01-preview" \
-            --headers "Content-Type=application/json" \
-            || echo "Stop request returned non-zero (may already be stopping/stopped)"
+          TOKEN=$(az account get-access-token \
+            --resource https://management.azure.com \
+            --query accessToken --output tsv)
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Length: 0" \
+            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/stop?api-version=2023-06-01-preview")
+          echo "Stop HTTP status: $HTTP"
+          [[ "$HTTP" =~ ^2|^202 ]] || echo "Stop returned $HTTP (may already be stopping/stopped)"
           echo "Polling for Stopped state..."
           for i in $(seq 1 18); do
             STATE=$(az rest \

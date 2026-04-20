@@ -126,11 +126,15 @@ jobs:
           RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
           NAME="${{ secrets.AZURE_DB_SERVER_NAME }}"
           echo "Starting PostgreSQL server $NAME..."
-          az rest \
-            --method POST \
-            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/start?api-version=2023-06-01-preview" \
-            --headers "Content-Type=application/json" \
-            || echo "Start request returned non-zero (may already be starting/running)"
+          TOKEN=$(az account get-access-token \
+            --resource https://management.azure.com \
+            --query accessToken --output tsv)
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Length: 0" \
+            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/start?api-version=2023-06-01-preview")
+          echo "Start HTTP status: $HTTP"
+          [[ "$HTTP" =~ ^2|^202 ]] || echo "Start returned $HTTP (may already be starting/running)"
 
       - name: "Wait for PostgreSQL to become Ready"
         timeout-minutes: 5
@@ -178,11 +182,15 @@ jobs:
           RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
           NAME="${{ secrets.AKS_CLUSTER_NAME }}"
           echo "Starting AKS cluster $NAME..."
-          az rest \
-            --method POST \
-            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/start?api-version=2023-10-01" \
-            --headers "Content-Type=application/json" \
-            || echo "Start request returned non-zero (may already be starting/running)"
+          TOKEN=$(az account get-access-token \
+            --resource https://management.azure.com \
+            --query accessToken --output tsv)
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Length: 0" \
+            "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/start?api-version=2023-10-01")
+          echo "Start HTTP status: $HTTP"
+          [[ "$HTTP" =~ ^2|^202 ]] || echo "Start returned $HTTP (may already be starting/running)"
           echo "AKS start signal sent"
 
       - name: "Wait for AKS cluster to reach Running state"
