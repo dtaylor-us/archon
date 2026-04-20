@@ -11,8 +11,6 @@ global:
 bootstrapSecrets:
   create: false
   openaiApiKey: ""
-  azureOpenaiApiKey: ""
-  azureOpenaiEndpoint: ""
   dbPassword: ""
   jwtSecret: ""
   agentInternalSecret: ""
@@ -58,12 +56,6 @@ agent:
     - name: OPENAI_API_KEY
       secretName: archon-secrets
       secretKey: openai-api-key
-    - name: AZURE_OPENAI_API_KEY
-      secretName: archon-secrets
-      secretKey: azure-openai-api-key
-    - name: AZURE_OPENAI_ENDPOINT
-      secretName: archon-secrets
-      secretKey: azure-openai-endpoint
 
 # ── API (Spring Boot) ───────────────────────────────────────────
 api:
@@ -187,10 +179,6 @@ keyVault:
   secrets:
     - name: openai-api-key
       key: openai-api-key
-    - name: azure-openai-api-key
-      key: azure-openai-api-key
-    - name: azure-openai-endpoint
-      key: azure-openai-endpoint
     - name: db-password
       key: db-password
     - name: jwt-secret
