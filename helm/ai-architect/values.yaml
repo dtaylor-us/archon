@@ -163,7 +163,7 @@ qdrant:
 ingress:
   enabled: true
   className: nginx
-  host: archon.example.com
+  host: archon.20.15.73.156.nip.io
   tls:
     enabled: false
     secretName: archon-tls
