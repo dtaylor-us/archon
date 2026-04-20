@@ -132,28 +132,11 @@ jobs:
           NAME: ${{ secrets.AKS_CLUSTER_NAME }}
         run: |
           echo "Sending stop to AKS cluster $NAME"
-          python3 - <<'PYEOF'
-import subprocess, json, urllib.request, urllib.error, os
-sub  = os.environ['SUB']
-rg   = os.environ['RG']
-name = os.environ['NAME']
-result = subprocess.run(
-    ['az', 'account', 'get-access-token',
-     '--resource', 'https://management.azure.com', '--output', 'json'],
-    capture_output=True, text=True, check=True)
-token = json.loads(result.stdout)['accessToken']
-url = (f'https://management.azure.com/subscriptions/{sub}/resourceGroups/{rg}'
-       f'/providers/Microsoft.ContainerService/managedClusters/{name}'
-       f'/stop?api-version=2023-10-01')
-req = urllib.request.Request(url, data=b'', method='POST')
-req.add_header('Authorization', f'Bearer {token}')
-req.add_header('Content-Length', '0')
-try:
-    resp = urllib.request.urlopen(req)
-    print(f'Stop HTTP status: {resp.status}')
-except urllib.error.HTTPError as e:
-    print(f'Stop HTTP status: {e.code} ({e.reason}) — may already be stopping/stopped')
-PYEOF
+          set +e
+          az rest \
+            --method POST \
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/stop?api-version=2023-10-01"
+          set -e
           echo "Polling for Stopped state..."
           for i in $(seq 1 24); do
             STATE=$(az rest \
@@ -202,28 +185,11 @@ PYEOF
           NAME: ${{ secrets.AZURE_DB_SERVER_NAME }}
         run: |
           echo "Sending stop to PostgreSQL server $NAME"
-          python3 - <<'PYEOF'
-import subprocess, json, urllib.request, urllib.error, os
-sub  = os.environ['SUB']
-rg   = os.environ['RG']
-name = os.environ['NAME']
-result = subprocess.run(
-    ['az', 'account', 'get-access-token',
-     '--resource', 'https://management.azure.com', '--output', 'json'],
-    capture_output=True, text=True, check=True)
-token = json.loads(result.stdout)['accessToken']
-url = (f'https://management.azure.com/subscriptions/{sub}/resourceGroups/{rg}'
-       f'/providers/Microsoft.DBforPostgreSQL/flexibleServers/{name}'
-       f'/stop?api-version=2023-06-01-preview')
-req = urllib.request.Request(url, data=b'', method='POST')
-req.add_header('Authorization', f'Bearer {token}')
-req.add_header('Content-Length', '0')
-try:
-    resp = urllib.request.urlopen(req)
-    print(f'Stop HTTP status: {resp.status}')
-except urllib.error.HTTPError as e:
-    print(f'Stop HTTP status: {e.code} ({e.reason}) — may already be stopping/stopped')
-PYEOF
+          set +e
+          az rest \
+            --method POST \
+            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/stop?api-version=2023-06-01-preview"
+          set -e
           echo "Polling for Stopped state..."
           for i in $(seq 1 18); do
             STATE=$(az rest \
