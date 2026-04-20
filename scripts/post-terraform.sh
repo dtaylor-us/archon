@@ -123,38 +123,14 @@ EOF
   success "ClusterIssuer 'letsencrypt-prod' created."
 fi
 
-# ─── Step 5: Install Secrets Store CSI driver + Azure Key Vault provider ───────
-header "Step 5 — Installing Secrets Store CSI driver + Azure Key Vault provider"
+# ─── Step 5: Verify Secrets Store CSI driver (managed by AKS add-on) ────────
+header "Step 5 — Verifying Secrets Store CSI driver (AKS add-on)"
 
-helm repo add secrets-store-csi-driver \
-  https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts 2>/dev/null || true
-helm repo add csi-secrets-store-provider-azure \
-  https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
-helm repo update
-
-if kubectl get csidriver secrets-store.csi.k8s.io &>/dev/null; then
-  success "CSI driver already registered (AKS add-on) — skipping core driver install."
-else
-  info "Installing core Secrets Store CSI driver..."
-  helm upgrade --install secrets-store-csi-driver \
-    secrets-store-csi-driver/secrets-store-csi-driver \
-    --namespace kube-system \
-    --set syncSecret.enabled=true \
-    --wait --timeout 10m
-  success "Core CSI driver installed."
-fi
-
-info "Installing/upgrading Azure Key Vault provider..."
-helm upgrade --install csi-secrets-store-provider-azure \
-  csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
-  --namespace kube-system \
-  --set "secrets-store-csi-driver.install=false" \
-  --wait --timeout 10m
-success "Azure Key Vault CSI provider installed."
-
-info "Verifying CSI driver registration..."
+# The AKS key_vault_secrets_provider add-on manages both the core CSI driver
+# and the Azure provider DaemonSets. No separate Helm install is needed or safe.
 kubectl get csidriver secrets-store.csi.k8s.io
-success "CSI driver registered on cluster."
+kubectl get daemonset -n kube-system aks-secrets-store-provider-azure
+success "Secrets Store CSI driver and Azure provider are present (AKS add-on)."
 
 # ─── Step 6: Create application namespace ────────────────────────────────────
 header "Step 6 — Creating application namespace"

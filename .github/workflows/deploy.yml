@@ -196,35 +196,14 @@ jobs:
           set -euo pipefail
 
           # ── Secrets Store CSI driver + Azure provider ──────────────────────────
+          # The AKS key_vault_secrets_provider add-on manages both the core
+          # CSI driver and the Azure provider DaemonSets. No Helm install needed.
           echo "=== Secrets Store CSI driver ==="
-          helm repo add secrets-store-csi-driver \
-            https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts 2>/dev/null || true
-          helm repo add csi-secrets-store-provider-azure \
-            https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
-          helm repo update
-
-          if kubectl get csidriver secrets-store.csi.k8s.io &>/dev/null; then
-            echo "CSI driver already registered (AKS add-on) — skipping core driver install."
-          else
-            echo "Installing core Secrets Store CSI driver..."
-            helm upgrade --install secrets-store-csi-driver \
-              secrets-store-csi-driver/secrets-store-csi-driver \
-              --namespace kube-system \
-              --set syncSecret.enabled=true \
-              --wait --timeout 10m
-            echo "Core CSI driver installed."
-          fi
-
-          echo "Installing/upgrading Azure Key Vault provider..."
-          helm upgrade --install csi-secrets-store-provider-azure \
-            csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
-            --namespace kube-system \
-            --set "secrets-store-csi-driver.install=false" \
-            --wait --timeout 10m
-
-          echo "Verifying CSI driver registration..."
           kubectl get csidriver secrets-store.csi.k8s.io
-          echo "CSI driver registered successfully."
+          echo "CSI driver registered (AKS add-on)."
+
+          kubectl get daemonset -n kube-system aks-secrets-store-provider-azure
+          echo "Azure Key Vault provider DaemonSet present (AKS add-on)."
 
           # ── cert-manager ClusterIssuer ────────────────────────────────────
           echo "=== cert-manager ClusterIssuer ==="
