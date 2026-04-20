@@ -1,4 +1,4 @@
-# Deployment Guide — AI Architect Assistant
+# Deployment Guide : AI Architect Assistant
 
 ## What this guide covers
 
