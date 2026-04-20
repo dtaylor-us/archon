@@ -213,8 +213,6 @@ jobs:
           helm upgrade --install ai-architect helm/ai-architect/ \
             --namespace ai-architect \
             --create-namespace \
-            --wait \
-            --timeout 20m \
             --set api.image.repository=${{ secrets.ACR_LOGIN_SERVER }}/api \
             --set api.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
             --set agent.image.repository=${{ secrets.ACR_LOGIN_SERVER }}/agent \
