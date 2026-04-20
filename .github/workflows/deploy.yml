@@ -158,8 +158,7 @@ jobs:
             --namespace ai-architect \
             --create-namespace \
             --wait \
-            --timeout 10m \
-            --atomic \
+            --timeout 20m \
             --set api.image.repository=${{ secrets.ACR_LOGIN_SERVER }}/api \
             --set api.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
             --set agent.image.repository=${{ secrets.ACR_LOGIN_SERVER }}/agent \
@@ -190,11 +189,16 @@ jobs:
       - name: Debug failed pods
         if: failure()
         run: |
+          set +e
           kubectl get pods -n ai-architect -o wide
-          for pod in $(kubectl get pods -n ai-architect \
-            --field-selector=status.phase!=Running -o name); do
-            echo "=== Logs for $pod ==="
-            kubectl logs $pod -n ai-architect --tail=50
-            echo "=== Events for $pod ==="
-            kubectl describe $pod -n ai-architect | tail -20
+
+          for pod in $(kubectl get pods -n ai-architect -o name); do
+            echo "=== Describe $pod ==="
+            kubectl describe $pod -n ai-architect | tail -200 || true
+
+            echo "=== Logs for $pod (best effort) ==="
+            kubectl logs $pod -n ai-architect --all-containers=true --tail=200 || true
           done
+
+          echo "=== Namespace events ==="
+          kubectl get events -n ai-architect --sort-by=.lastTimestamp | tail -200 || true
