@@ -51,6 +51,7 @@ agent:
     OTEL_TRACES_SAMPLER: "parentbased_traceidratio"
     OTEL_TRACES_SAMPLER_ARG: "0.1"
     LLM_PROVIDER: "openai"
+    QDRANT_URL: "http://ai-architect-qdrant:6333"
   # Secret references — actual values sourced from Key Vault CSI
   secretEnv:
     - name: OPENAI_API_KEY
