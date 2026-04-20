@@ -161,7 +161,7 @@ ingress:
   className: nginx
   host: archon.example.com
   tls:
-    enabled: true
+    enabled: false
     secretName: archon-tls
 
 # ── Network Policy ──────────────────────────────────────────────
