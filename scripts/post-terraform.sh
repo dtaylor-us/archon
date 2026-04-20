@@ -123,24 +123,33 @@ EOF
   success "ClusterIssuer 'letsencrypt-prod' created."
 fi
 
-# ─── Step 5: Install Azure Key Vault CSI driver ───────────────────────────────
-header "Step 5 — Installing Azure Key Vault CSI driver"
+# ─── Step 5: Install Secrets Store CSI driver + Azure Key Vault provider ───────
+header "Step 5 — Installing Secrets Store CSI driver + Azure Key Vault provider"
 
-# The AKS cluster was provisioned with the key_vault_secrets_provider add-on,
-# which installs the CSI driver natively. A separate Helm install would conflict.
-if kubectl get csidriver secrets-store.csi.k8s.io &>/dev/null; then
-  success "Azure Key Vault CSI driver already present (AKS add-on)."
-else
-  helm repo add csi-secrets-store-provider-azure \
-    https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
-  helm repo update
-  helm upgrade --install csi-secrets-store-provider-azure \
-    csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
-    --namespace kube-system \
-    --wait \
-    --timeout 5m
-  success "Azure Key Vault CSI driver installed via Helm."
-fi
+helm repo add secrets-store-csi-driver \
+  https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts 2>/dev/null || true
+helm repo add csi-secrets-store-provider-azure \
+  https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
+helm repo update
+
+info "Installing/upgrading core Secrets Store CSI driver..."
+helm upgrade --install secrets-store-csi-driver \
+  secrets-store-csi-driver/secrets-store-csi-driver \
+  --namespace kube-system \
+  --set syncSecret.enabled=true \
+  --wait --timeout 10m
+success "Core CSI driver installed."
+
+info "Installing/upgrading Azure Key Vault provider..."
+helm upgrade --install csi-secrets-store-provider-azure \
+  csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
+  --namespace kube-system \
+  --wait --timeout 10m
+success "Azure Key Vault CSI provider installed."
+
+info "Verifying CSI driver registration..."
+kubectl get csidriver secrets-store.csi.k8s.io
+success "CSI driver registered on cluster."
 
 # ─── Step 6: Create application namespace ────────────────────────────────────
 header "Step 6 — Creating application namespace"

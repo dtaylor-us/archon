@@ -195,21 +195,30 @@ jobs:
         run: |
           set -euo pipefail
 
-          # ── Secrets Store CSI driver ──────────────────────────────────────
+          # ── Secrets Store CSI driver + Azure provider ──────────────────────────
           echo "=== Secrets Store CSI driver ==="
-          if kubectl get csidriver secrets-store.csi.k8s.io &>/dev/null; then
-            echo "CSI driver already present."
-          else
-            echo "CSI driver missing — installing via Helm..."
-            helm repo add csi-secrets-store-provider-azure \
-              https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
-            helm repo update
-            helm upgrade --install csi-secrets-store-provider-azure \
-              csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
-              --namespace kube-system \
-              --wait --timeout 5m
-            echo "CSI driver installed."
-          fi
+          helm repo add secrets-store-csi-driver \
+            https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts 2>/dev/null || true
+          helm repo add csi-secrets-store-provider-azure \
+            https://azure.github.io/secrets-store-csi-driver-provider-azure/charts 2>/dev/null || true
+          helm repo update
+
+          echo "Installing/upgrading core Secrets Store CSI driver..."
+          helm upgrade --install secrets-store-csi-driver \
+            secrets-store-csi-driver/secrets-store-csi-driver \
+            --namespace kube-system \
+            --set syncSecret.enabled=true \
+            --wait --timeout 10m
+
+          echo "Installing/upgrading Azure Key Vault provider..."
+          helm upgrade --install csi-secrets-store-provider-azure \
+            csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
+            --namespace kube-system \
+            --wait --timeout 10m
+
+          echo "Verifying CSI driver registration..."
+          kubectl get csidriver secrets-store.csi.k8s.io
+          echo "CSI driver registered successfully."
 
           # ── cert-manager ClusterIssuer ────────────────────────────────────
           echo "=== cert-manager ClusterIssuer ==="
@@ -217,7 +226,8 @@ jobs:
             echo "ClusterIssuer letsencrypt-prod already exists."
           else
             echo "Creating ClusterIssuer letsencrypt-prod..."
-            kubectl apply -f - <<'EOF'
+            CERT_EMAIL="${{ secrets.CERT_MANAGER_EMAIL || 'admin@example.com' }}"
+            kubectl apply -f - <<EOF
           apiVersion: cert-manager.io/v1
           kind: ClusterIssuer
           metadata:
@@ -225,7 +235,7 @@ jobs:
           spec:
             acme:
               server: https://acme-v02.api.letsencrypt.org/directory
-              email: ${{ secrets.CERT_MANAGER_EMAIL || 'admin@example.com' }}
+              email: ${CERT_EMAIL}
               privateKeySecretRef:
                 name: letsencrypt-prod
               solvers:
