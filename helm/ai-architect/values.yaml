@@ -102,7 +102,7 @@ ui:
     tag: latest
     pullPolicy: IfNotPresent
   service:
-    port: 80
+    port: 8080
   resources:
     requests:
       cpu: 100m
