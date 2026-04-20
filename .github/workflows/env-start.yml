@@ -7,7 +7,9 @@
 # Runs on weekday mornings automatically. Can be triggered manually at any time.
 #
 # Required GitHub Secrets:
-#   AZURE_CREDENTIALS       Full service principal JSON blob (from az ad sp create-for-rbac)
+#   AZURE_CLIENT_ID         Service principal client ID (OIDC)
+#   AZURE_TENANT_ID         Azure tenant ID (OIDC)
+#   AZURE_SUBSCRIPTION_ID   Azure subscription ID (OIDC)
 #   AZURE_RESOURCE_GROUP    Resource group name e.g. rg-axiom-dev
 #   AKS_CLUSTER_NAME        AKS cluster name e.g. aks-axiom-dev
 #   AZURE_DB_SERVER_NAME    *** NEW *** PostgreSQL flexible server name
@@ -52,6 +54,10 @@ concurrency:
   group: environment-lifecycle
   cancel-in-progress: false
 
+permissions:
+  id-token: write   # required for OIDC login
+  contents: read
+
 jobs:
 
   # ─── check-state ────────────────────────────────────────────────────────────
@@ -68,7 +74,9 @@ jobs:
       - name: "Authenticate to Azure"
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: "Get AKS cluster power state"
         id: aks_state
@@ -107,7 +115,9 @@ jobs:
       - name: "Authenticate to Azure"
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: "Start PostgreSQL flexible server"
         id: start
@@ -152,7 +162,9 @@ jobs:
       - name: "Authenticate to Azure"
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: "Start AKS cluster"
         id: start
@@ -209,7 +221,9 @@ jobs:
       - name: "Authenticate to Azure"
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: "Get AKS credentials"
         run: |

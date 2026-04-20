@@ -6,7 +6,9 @@
 # trying to access it, and to diagnose unexpected states.
 #
 # Required GitHub Secrets:
-#   AZURE_CREDENTIALS       Full service principal JSON blob (from az ad sp create-for-rbac)
+#   AZURE_CLIENT_ID         Service principal client ID (OIDC)
+#   AZURE_TENANT_ID         Azure tenant ID (OIDC)
+#   AZURE_SUBSCRIPTION_ID   Azure subscription ID (OIDC)
 #   AZURE_RESOURCE_GROUP    Resource group name e.g. rg-axiom-dev
 #   AKS_CLUSTER_NAME        AKS cluster name e.g. aks-axiom-dev
 #   ACR_NAME                Azure Container Registry name e.g. acraxiomdevbpxn
@@ -26,6 +28,10 @@ on:
 # No concurrency group — status checks are read-only and should never be blocked
 # by a running start or stop workflow.
 
+permissions:
+  id-token: write   # required for OIDC login
+  contents: read
+
 jobs:
 
   status:
@@ -35,7 +41,9 @@ jobs:
       - name: "Authenticate to Azure"
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: "AKS cluster state"
         run: |
