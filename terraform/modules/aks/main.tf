@@ -55,6 +55,11 @@ resource "azurerm_kubernetes_cluster" "main" {
     secret_rotation_enabled = true
   }
 
+  # OIDC issuer is required for workload identity and cannot be disabled
+  # once enabled on a cluster.
+  oidc_issuer_enabled       = true
+  workload_identity_enabled = true
+
   oms_agent {
     log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
   }
