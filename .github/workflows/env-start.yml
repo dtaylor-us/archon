@@ -121,16 +121,12 @@ jobs:
 
       - name: "Start PostgreSQL flexible server"
         id: start
-        env:
-          SUB: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          NAME: ${{ secrets.AZURE_DB_SERVER_NAME }}
         run: |
-          echo "Starting PostgreSQL server $NAME..."
+          echo "Starting PostgreSQL server ${{ secrets.AZURE_DB_SERVER_NAME }}..."
           set +e
           az rest \
             --method POST \
-            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${NAME}/start?api-version=2023-06-01-preview"
+            --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${{ secrets.AZURE_DB_SERVER_NAME }}/start?api-version=2023-06-01-preview"
           set -e
 
       - name: "Wait for PostgreSQL to become Ready"
@@ -174,16 +170,12 @@ jobs:
 
       - name: "Start AKS cluster"
         id: start
-        env:
-          SUB: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          NAME: ${{ secrets.AKS_CLUSTER_NAME }}
         run: |
-          echo "Starting AKS cluster $NAME..."
+          echo "Starting AKS cluster ${{ secrets.AKS_CLUSTER_NAME }}..."
           set +e
           az rest \
             --method POST \
-            --url "https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${NAME}/start?api-version=2023-10-01"
+            --url "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ secrets.AZURE_RESOURCE_GROUP }}/providers/Microsoft.ContainerService/managedClusters/${{ secrets.AKS_CLUSTER_NAME }}/start?api-version=2023-10-01"
           set -e
           echo "AKS start signal sent"
 
