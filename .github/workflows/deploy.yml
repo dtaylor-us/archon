@@ -148,6 +148,21 @@ jobs:
           kubectl config current-context
           kubectl cluster-info
 
+      - name: Verify ACR is attached to AKS
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking ACR integration for cluster ${{ secrets.AKS_CLUSTER_NAME }}..."
+          az aks check-acr \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
+            --acr "${{ secrets.ACR_NAME }}" || {
+            echo "::warning::ACR not attached to AKS — pods may fail with ImagePullBackOff."
+            echo "Fix: az aks update --attach-acr ${{ secrets.ACR_NAME }} \\"
+            echo "  --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \\"
+            echo "  --name ${{ secrets.AKS_CLUSTER_NAME }}"
+          }
+
       - uses: azure/setup-helm@v4
         with:
           version: "3.14.0"
@@ -199,6 +214,9 @@ jobs:
             echo "=== Logs for $pod (best effort) ==="
             kubectl logs $pod -n ai-architect --all-containers=true --tail=200 || true
           done
+
+          echo "=== Namespace events ==="
+          kubectl get events -n ai-architect --sort-by=.lastTimestamp | tail -200 || true
 
           echo "=== Namespace events ==="
           kubectl get events -n ai-architect --sort-by=.lastTimestamp | tail -200 || true
