@@ -23,9 +23,12 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Run as non-root user (required by ARCHITECTURE.md security rules)
 RUN addgroup -g 1001 -S appgroup && \
     adduser -u 1001 -S appuser -G appgroup && \
-    chown -R appuser:appgroup /var/cache/nginx /var/log/nginx /var/run && \
-    # nginx needs to write to these dirs
-    chmod -R 755 /var/cache/nginx /var/log/nginx /var/run
+    chown -R appuser:appgroup \
+      /var/cache/nginx \
+      /var/log/nginx \
+      /var/run \
+      /run && \
+    chmod -R 755 /var/cache/nginx /var/log/nginx /var/run /run
 
 USER appuser
 
