@@ -110,7 +110,7 @@ jobs:
     name: "Stop AKS cluster"
     runs-on: ubuntu-latest
     needs: check-state
-    if: needs.check-state.outputs.aks_state != 'Stopped'
+    if: needs.check-state.outputs.aks_state != 'Stopped' && needs.check-state.outputs.aks_state != 'Stopping' && needs.check-state.outputs.aks_state != 'Deallocated'
     steps:
       - name: "Authenticate to Azure"
         uses: azure/login@v2
@@ -125,8 +125,8 @@ jobs:
           az aks stop \
             --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
             --name "${{ secrets.AKS_CLUSTER_NAME }}" \
-            --no-wait
-          echo "Stop signal sent — polling for Stopped state..."
+            --no-wait || echo "Stop command returned non-zero (may already be stopping/stopped)"
+          echo "Polling for Stopped state..."
           for i in $(seq 1 24); do
             STATE=$(az aks show \
               --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
@@ -154,7 +154,7 @@ jobs:
     name: "Stop PostgreSQL server"
     runs-on: ubuntu-latest
     needs: check-state
-    if: needs.check-state.outputs.db_state != 'Stopped'
+    if: needs.check-state.outputs.db_state != 'Stopped' && needs.check-state.outputs.db_state != 'Stopping'
     steps:
       - name: "Authenticate to Azure"
         uses: azure/login@v2
@@ -168,9 +168,8 @@ jobs:
           echo "Stopping PostgreSQL server ${{ secrets.AZURE_DB_SERVER_NAME }}"
           az postgres flexible-server stop \
             --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ secrets.AZURE_DB_SERVER_NAME }}" \
-            --no-wait
-          echo "Stop signal sent — polling for Stopped state..."
+            --name "${{ secrets.AZURE_DB_SERVER_NAME }}" || echo "Stop command returned non-zero (may already be stopping/stopped)"
+          echo "Polling for Stopped state..."
           for i in $(seq 1 18); do
             STATE=$(az postgres flexible-server show \
               --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
