@@ -219,6 +219,7 @@ jobs:
           helm upgrade --install csi-secrets-store-provider-azure \
             csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
             --namespace kube-system \
+            --set "secrets-store-csi-driver.install=false" \
             --wait --timeout 10m
 
           echo "Verifying CSI driver registration..."

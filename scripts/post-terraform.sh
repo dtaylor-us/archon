@@ -148,6 +148,7 @@ info "Installing/upgrading Azure Key Vault provider..."
 helm upgrade --install csi-secrets-store-provider-azure \
   csi-secrets-store-provider-azure/csi-secrets-store-provider-azure \
   --namespace kube-system \
+  --set "secrets-store-csi-driver.install=false" \
   --wait --timeout 10m
 success "Azure Key Vault CSI provider installed."
 
