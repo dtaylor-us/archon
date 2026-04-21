@@ -9,6 +9,7 @@ from app.pipeline.nodes import (
     requirement_challenge,
     scenario_modeling,
     characteristic_inference,
+    tactics_recommendation,
     conflict_analysis,
     architecture_generation,
     diagram_generation,
@@ -55,12 +56,14 @@ def _setup_registry(mock_llm: AsyncMock):
     mock_adl = _make_tool()
     mock_weakness = _make_tool()
     mock_fmea = _make_tool()
+    mock_tactics_advisor = _make_tool()
 
     registry = {
         "requirement_parser": mock_parser,
         "challenge_engine": mock_challenge,
         "scenario_modeler": mock_scenario,
         "characteristic_reasoner": mock_char_reasoner,
+        "tactics_advisor": mock_tactics_advisor,
         "conflict_analyzer": mock_conflict,
         "architecture_generator": mock_arch_gen,
         "diagram_generator": mock_diagram,
@@ -181,6 +184,38 @@ class TestLiveNodes:
         await weakness_analysis(state)
 
         _setup_registry["weakness_analyzer"].execute.assert_awaited_once_with(base_context)
+
+    async def test_tactics_recommendation_calls_tactics_advisor(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
+    ):
+        """tactics_recommendation() calls TacticsAdvisorTool.execute() with context."""
+        state: PipelineState = {"context": base_context}
+
+        await tactics_recommendation(state)
+
+        _setup_registry["tactics_advisor"].execute.assert_awaited_once_with(base_context)
+
+    async def test_tactics_recommendation_returns_updated_context(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
+    ):
+        """tactics_recommendation() returns dict with updated context containing tactics field."""
+        expected_tactics = [{"tactic_name": "Circuit Breaker", "characteristic_name": "availability"}]
+
+        async def _run_with_tactics(ctx):
+            ctx.tactics = expected_tactics
+            return ctx
+
+        _setup_registry["tactics_advisor"].run = AsyncMock(side_effect=_run_with_tactics)
+
+        async def _exec(ctx):
+            return await _setup_registry["tactics_advisor"].run(ctx)
+
+        _setup_registry["tactics_advisor"].execute = AsyncMock(side_effect=_exec)
+
+        state: PipelineState = {"context": base_context}
+        result = await tactics_recommendation(state)
+
+        assert result["context"].tactics == expected_tactics
 
 
 class TestFmeaAndReviewNodes:

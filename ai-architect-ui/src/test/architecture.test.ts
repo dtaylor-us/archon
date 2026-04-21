@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getArchitecture, getDiagram } from '../api/architecture';
+import { getArchitecture, getDiagramCollection } from '../api/architecture';
 
 describe('architecture API', () => {
   beforeEach(() => {
@@ -39,15 +39,30 @@ describe('architecture API', () => {
     await expect(getArchitecture('bad', 'jwt')).rejects.toThrow('404');
   });
 
-  it('getDiagram_fetchesAndReturnsDiagrams', async () => {
-    const mockData = { componentDiagram: 'graph LR', sequenceDiagram: 'seq' };
+  it('getDiagramCollection_fetchesAndReturnsDiagramCollection', async () => {
+    const mockData = {
+      diagramCount: 1,
+      diagramTypes: ['c4_container'],
+      diagrams: [{
+        diagramId: 'D-001',
+        type: 'c4_container',
+        title: 'C4 Container',
+        description: 'Container view',
+        mermaidSource: 'graph TD\nA-->B',
+        characteristicAddressed: 'modularity',
+      }],
+    };
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () => mockData,
     } as unknown as Response);
 
-    const result = await getDiagram('s1', 'jwt');
+    const result = await getDiagramCollection('s1', 'jwt');
     expect(result).toEqual(mockData);
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/sessions/s1/diagram',
+      { headers: { Authorization: 'Bearer jwt' } },
+    );
   });
 });

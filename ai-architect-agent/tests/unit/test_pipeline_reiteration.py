@@ -29,6 +29,7 @@ def mock_registry():
         "adl_generator",
         "weakness_analyzer",
         "fmea_analyzer",
+        "tactics_advisor",
     ]:
         tool = AsyncMock()
         tool.run = AsyncMock(side_effect=lambda ctx, n=name: ctx)
@@ -69,9 +70,9 @@ def base_context():
 
 class TestPipelineOrdering:
 
-    def test_ordered_stages_has_12_entries(self):
-        """ORDERED_STAGES must have exactly 12 stages."""
-        assert len(ORDERED_STAGES) == 12
+    def test_ordered_stages_has_13_entries(self):
+        """ORDERED_STAGES must have exactly 13 stages."""
+        assert len(ORDERED_STAGES) == 13
 
     def test_weakness_and_fmea_are_separate_stages(self):
         """weakness_analysis and fmea_analysis run as separate stages;
@@ -98,8 +99,8 @@ class TestPipelineStreaming:
         stage_starts = [c for c in chunks if c["type"] == "STAGE_START"]
         stage_completes = [c for c in chunks if c["type"] == "STAGE_COMPLETE"]
 
-        assert len(stage_starts) == 12
-        assert len(stage_completes) == 12
+        assert len(stage_starts) == 13
+        assert len(stage_completes) == 13
 
     async def test_ends_with_complete_event(self, base_context):
         last_chunk = None
@@ -242,7 +243,7 @@ class TestReiterationGate:
             chunks.append(json.loads(chunk))
 
         completes = [c for c in chunks if c["type"] == "STAGE_COMPLETE"]
-        assert len(completes) == 24  # 12 stages × 2 iterations
+        assert len(completes) == 26  # 13 stages × 2 iterations
 
     async def test_re_iterate_payload_includes_constraints(
         self, base_context, mock_review_agent,

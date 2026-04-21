@@ -23,6 +23,8 @@ interface ConversationSlice {
   isStreaming: boolean;
   error: string | null;
   stages: StageState[];
+  /** Incremented each time a COMPLETE event is received — lets hooks re-fetch. */
+  pipelineVersion: number;
   setConversationId: (id: string) => void;
   loadConversation: (id: string, messages: ChatMessage[]) => void;
   setStreaming: (v: boolean) => void;
@@ -58,6 +60,7 @@ export const useStore = create<AppStore>((set, get) => ({
   isStreaming: false,
   error: null,
   stages: initialStages(),
+  pipelineVersion: 0,
 
   setConversationId: (id) => set({ conversationId: id }),
   loadConversation: (id, messages) =>
@@ -140,6 +143,7 @@ export const useStore = create<AppStore>((set, get) => ({
               ? [...s.messages, { role: 'ASSISTANT', content: s.streamingText }]
               : s.messages,
           streamingText: '',
+          pipelineVersion: s.pipelineVersion + 1,
         }));
         break;
 
@@ -174,5 +178,6 @@ export const useStore = create<AppStore>((set, get) => ({
       isStreaming: false,
       error: null,
       stages: initialStages(),
+      pipelineVersion: 0,
     }),
 }));

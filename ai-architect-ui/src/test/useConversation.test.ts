@@ -31,7 +31,7 @@ describe('useConversation', () => {
     expect(result.current.isStreaming).toBe(false);
     expect(result.current.error).toBeNull();
     expect(result.current.conversationId).toBeNull();
-    expect(result.current.stages).toHaveLength(12);
+    expect(result.current.stages).toHaveLength(13);
   });
 
   it('returnsSendMessageFunction', () => {

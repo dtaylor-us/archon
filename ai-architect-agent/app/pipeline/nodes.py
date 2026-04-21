@@ -67,6 +67,15 @@ async def characteristic_inference(state: PipelineState) -> dict:
     return {"context": ctx}
 
 
+async def tactics_recommendation(state: PipelineState) -> dict:
+    """Stage 4b — recommends architecture tactics for each inferred quality
+    attribute. Runs after characteristic inference and before conflict analysis
+    so tactics are available to inform the conflict resolution guidance.
+    """
+    ctx = await _registry["tactics_advisor"].execute(state["context"])
+    return {"context": ctx}
+
+
 async def conflict_analysis(state: PipelineState) -> dict:
     ctx = await _registry["conflict_analyzer"].execute(state["context"])
     return {"context": ctx}

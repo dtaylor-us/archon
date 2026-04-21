@@ -15,7 +15,7 @@ describe('StageProgress', () => {
   it('renders_allTwelveStages', () => {
     render(<StageProgress stages={makeStages()} />);
     const container = screen.getByTestId('stage-progress');
-    expect(container.children).toHaveLength(12);
+    expect(container.children).toHaveLength(13);
   });
 
   it('displaysPendingIcon_forPendingStages', () => {

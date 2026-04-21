@@ -3,9 +3,14 @@ import { render, screen } from '@testing-library/react';
 import { ArchitectureView } from '../views/ArchitectureView';
 
 let architectureState: Record<string, unknown>;
+let diagramsState: Record<string, unknown>;
 
 vi.mock('../hooks/useArchitecture', () => ({
   useArchitecture: () => architectureState,
+}));
+
+vi.mock('../hooks/useDiagrams', () => ({
+  useDiagrams: () => diagramsState,
 }));
 
 // Mock MermaidDiagram to avoid mermaid import in jsdom
@@ -22,6 +27,7 @@ describe('ArchitectureView', () => {
       loading: false,
       error: null,
     };
+    diagramsState = { collection: null, loading: false, error: null };
   });
 
   it('rendersLoadingState', () => {
@@ -41,7 +47,7 @@ describe('ArchitectureView', () => {
     expect(screen.getByTestId('architecture-empty')).toBeInTheDocument();
   });
 
-  it('rendersArchitectureData', () => {
+  it('rendersFallbackDiagramsWhenCollectionEmpty', () => {
     architectureState.architecture = {
       conversationId: 'c1',
       style: 'Microservices',
@@ -59,10 +65,59 @@ describe('ArchitectureView', () => {
     render(<ArchitectureView />);
     expect(screen.getByTestId('architecture-view')).toBeInTheDocument();
     expect(screen.getByText('Microservices')).toBeInTheDocument();
-    expect(screen.getAllByText('API Gateway').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Auth Service').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('HTTP')).toBeInTheDocument();
-    // Mermaid diagrams rendered
+    // Falls back to two compat diagram sections
     expect(screen.getAllByTestId('mock-mermaid')).toHaveLength(2);
+  });
+
+  it('rendersDiagramCollectionWhenPresent', () => {
+    architectureState.architecture = {
+      conversationId: 'c1',
+      style: 'Microservices',
+      components: [],
+      interactions: [],
+      componentDiagram: '',
+      sequenceDiagram: '',
+    };
+    diagramsState = {
+      collection: {
+        diagramCount: 3,
+        diagramTypes: ['c4_container', 'sequence_primary', 'state'],
+        diagrams: [
+          {
+            diagramId: 'D-001',
+            type: 'c4_container',
+            title: 'C4 Container View',
+            description: 'Container architecture',
+            mermaidSource: 'graph TD\nA-->B',
+            characteristicAddressed: 'modularity',
+          },
+          {
+            diagramId: 'D-002',
+            type: 'sequence_primary',
+            title: 'Primary Flow',
+            description: 'Happy path sequence',
+            mermaidSource: 'sequenceDiagram\nA->>B: call',
+            characteristicAddressed: 'performance',
+          },
+          {
+            diagramId: 'D-003',
+            type: 'state',
+            title: 'Order State Machine',
+            description: 'Order lifecycle states',
+            mermaidSource: 'stateDiagram-v2\n[*] --> pending',
+            characteristicAddressed: 'reliability',
+          },
+        ],
+      },
+      loading: false,
+      error: null,
+    };
+
+    render(<ArchitectureView />);
+    expect(screen.getAllByTestId('mock-mermaid')).toHaveLength(3);
+    expect(screen.getByText('C4 Container View')).toBeInTheDocument();
+    expect(screen.getByText('Primary Flow')).toBeInTheDocument();
+    expect(screen.getByText('Order State Machine')).toBeInTheDocument();
+    expect(screen.getByText('Addresses: modularity')).toBeInTheDocument();
   });
 });

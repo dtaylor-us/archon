@@ -41,6 +41,8 @@ DEFINE service ai-architect-api {
     GET /api/v1/sessions/{id}/diagram/{type},
     GET /api/v1/sessions/{id}/fmea-risks,
     GET /api/v1/sessions/{id}/governance,
+    GET /api/v1/sessions/{id}/tactics,
+    GET /api/v1/sessions/{id}/tactics/summary,
     GET /api/v1/conversations/{id}/usage
   ]
   CALLS: [ai-architect-agent via AgentHttpClient]
@@ -192,6 +194,33 @@ ASSERT ai-architect-agent {
     — source must be raw Mermaid syntax only
 }
 
+ASSERT tactics_advisor {
+  MUST only recommend tactics from the Bass, Clements, Kazman catalog
+    — "Software Architecture in Practice", 4th ed., SEI/Addison-Wesley 2021
+    — no invented or unattributed tactics
+
+  MUST produce a minimum of 4 validated tactic recommendations per run
+    — fewer than 4 passing validation is treated as a warning condition
+
+  MUST validate each tactic before writing to ArchitectureContext
+    — tactic_name MUST be non-blank
+    — description MUST be >= 20 characters
+    — concrete_application MUST be >= 30 characters (system-specific, not generic)
+    — effort MUST be one of: low | medium | high
+    — priority MUST be one of: critical | recommended | optional
+    — implementation_examples MUST be a non-empty list
+
+  MUST execute as pipeline stage 4b
+    — AFTER characteristic_inference (stage 4)
+    — BEFORE conflict_analysis (stage 5)
+    — reads context.characteristics (MUST be populated)
+    — reads context.architecture_design (optional — logs WARNING if absent)
+
+  MUST write to context.tactics and context.tactics_summary only
+    — MUST NOT mutate characteristics, architecture_design, or any stage output
+      written before stage 4b
+}
+
 REQUIRE ai-architect-agent {
   IF a new pipeline stage is added
     THEN it MUST be added as a LangGraph node (Phase 2+)
@@ -233,7 +262,9 @@ DEFINE service ai-architect-ui {
     GET /api/v1/sessions/{id}/trade-offs,
     GET /api/v1/sessions/{id}/weaknesses,
     GET /api/v1/sessions/{id}/fmea-risks,
-    GET /api/v1/sessions/{id}/governance
+    GET /api/v1/sessions/{id}/governance,
+    GET /api/v1/sessions/{id}/tactics,
+    GET /api/v1/sessions/{id}/tactics/summary
   ]
   ROOT_DIR: ai-architect-ui/src
 }
@@ -295,13 +326,15 @@ DEFINE pipeline ArchonPipeline {
     2  requirement_challenge     — RequirementChallengeEngine tool
     3  scenario_modeling         — ScenarioModeler tool
     4  characteristic_inference  — CharacteristicReasoningEngine tool
+    4b tactics_recommendation   — TacticsAdvisor tool (Bass/Clements/Kazman catalog)
     5  conflict_analysis         — CharacteristicConflictAnalyzer tool
     6  architecture_generation   — ArchitectureGenerator tool
     7  diagram_generation        — DiagramGenerator tool
-    8  adl_generation            — ADLGeneratorV2 tool
-    9  weakness_analysis         — WeaknessAnalyzer tool   [parallel with 10]
-    10 fmea_analysis             — FMEAPlus tool           [parallel with 9]
-    11 architecture_review       — ReviewAgent (separate LangGraph graph)
+    8  trade_off_analysis        — TradeOffEngine tool
+    9  adl_generation            — ADLGeneratorV2 tool
+    10 weakness_analysis         — WeaknessAnalyzer tool   [parallel with 11]
+    11 fmea_analysis             — FMEAPlus tool           [parallel with 10]
+    12 architecture_review       — ReviewAgent (separate LangGraph graph)
   ]
 }
 

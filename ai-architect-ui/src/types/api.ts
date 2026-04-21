@@ -5,6 +5,7 @@ export const PIPELINE_STAGES = [
   'requirement_challenge',
   'scenario_modeling',
   'characteristic_inference',
+  'tactics_recommendation',
   'conflict_analysis',
   'architecture_generation',
   'diagram_generation',
@@ -73,6 +74,23 @@ export interface ArchitectureOutput {
   interactions: Interaction[];
   componentDiagram: string;
   sequenceDiagram: string;
+}
+
+/* ── Diagrams ─────────────────────────────────────── */
+
+export interface DiagramDto {
+  diagramId: string;
+  type: string;
+  title: string;
+  description: string;
+  mermaidSource: string;
+  characteristicAddressed: string;
+}
+
+export interface DiagramCollectionDto {
+  diagrams: DiagramDto[];
+  diagramCount: number;
+  diagramTypes: string[];
 }
 
 /* ── Governance: Trade-offs ──────────────────────── */
@@ -146,6 +164,38 @@ export interface FmeaEntry {
   detection: number;
   rpn: number;
   recommended_action: string;
+}
+
+/* ── Tactics ─────────────────────────────────────── */
+
+/**
+ * A single tactic recommendation from the Bass/Clements/Kazman catalog
+ * (Software Architecture in Practice, 4th ed., SEI/Addison-Wesley 2021).
+ */
+export interface TacticRecommendation {
+  id: string;
+  tacticId: string;
+  tacticName: string;
+  characteristicName: string;
+  category: string;
+  description: string;
+  concreteApplication: string;
+  implementationExamples: string[];
+  alreadyAddressed: boolean;
+  addressEvidence: string;
+  effort: 'low' | 'medium' | 'high';
+  priority: 'critical' | 'recommended' | 'optional';
+  createdAt: string;
+}
+
+export interface TacticsSummary {
+  totalTactics: number;
+  criticalCount: number;
+  alreadyAddressedCount: number;
+  newTacticsCount: number;
+  perCharacteristic: Record<string, number>;
+  summary: string;
+  topCriticalTactics: string[];
 }
 
 /* ── Governance: Report ──────────────────────────── */

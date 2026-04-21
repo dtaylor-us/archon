@@ -425,6 +425,39 @@ curl https://your-domain/api/v1/sessions/CONVERSATION_ID/usage \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
+### View architecture tactics for a session
+
+The `tactics_recommendation` stage (stage 4b) runs after characteristics are
+inferred and before conflict analysis. It recommends architecture tactics from
+the Bass, Clements, and Kazman catalog ("Software Architecture in Practice",
+4th ed.) for each quality attribute identified in the design.
+
+```bash
+# All tactics for a session
+curl https://your-domain/api/v1/sessions/CONVERSATION_ID/tactics \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Only critical, unaddressed tactics (useful for a quick risk summary)
+curl "https://your-domain/api/v1/sessions/CONVERSATION_ID/tactics?priority=critical&newOnly=true" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Tactics for a specific quality characteristic (e.g. availability)
+curl "https://your-domain/api/v1/sessions/CONVERSATION_ID/tactics?characteristic=availability" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Aggregated summary (counts + top critical tactics)
+curl https://your-domain/api/v1/sessions/CONVERSATION_ID/tactics/summary \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Query parameters** for the tactics endpoint:
+
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `characteristic` | any string | Filter by quality characteristic name (case-insensitive prefix match) |
+| `priority` | `critical`, `recommended`, `optional` | Filter by tactic priority |
+| `newOnly` | `true` | Exclude tactics the LLM flagged as already addressed in the design |
+
 ### Scale for production
 
 Edit `terraform/environments/prod.tfvars` with larger VM sizes and node counts, then:
@@ -475,6 +508,28 @@ nginx Ingress Controller (AKS — namespace: ingress-nginx)
          PostgreSQL     Key Vault
         (Azure managed) (secrets via CSI driver)
 ```
+
+### Pipeline stages
+
+Each architecture analysis runs 13 sequential stages. The UI progress bar
+tracks them in order. Stages emit `STAGE_START` and `STAGE_COMPLETE` events
+via SSE.
+
+| # | Stage name | Description |
+|---|-----------|-------------|
+| 1 | `requirement_parsing` | Parse and structure the submitted requirements |
+| 2 | `challenge_identification` | Identify key architectural challenges |
+| 3 | `scenario_modeling` | Model quality attribute scenarios |
+| 4 | `characteristic_inference` | Infer architecture characteristics from requirements |
+| 4b | `tactics_recommendation` | Recommend architecture tactics (Bass/Clements/Kazman catalog) |
+| 5 | `conflict_analysis` | Detect conflicts between characteristics |
+| 6 | `architecture_generation` | Generate candidate architecture styles |
+| 7 | `diagram_generation` | Generate C4 architecture diagram |
+| 8 | `trade_off_analysis` | Analyse trade-offs between candidate styles |
+| 9 | `adl_generation` | Generate Architecture Decision Log |
+| 10 | `weakness_analysis` | Identify architectural weaknesses |
+| 11 | `fmea_analysis` | Failure Mode and Effects Analysis |
+| 12 | `architecture_review` | Final review and scoring (with optional reiteration) |
 
 ---
 

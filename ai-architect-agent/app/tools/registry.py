@@ -12,6 +12,7 @@ from app.tools.diagram_generator import DiagramGeneratorTool
 from app.tools.fmea_analyzer import FMEAPlusTool
 from app.tools.requirement_parser import RequirementParserTool
 from app.tools.scenario_modeler import ScenarioModelerTool
+from app.tools.tactics_advisor import TacticsAdvisorTool
 from app.tools.trade_off_engine import TradeOffEngineTool
 from app.tools.weakness_analyzer import WeaknessAnalyzerTool
 
@@ -34,6 +35,7 @@ def build_registry(
         "challenge_engine": RequirementChallengeEngineTool(llm_client),
         "scenario_modeler": ScenarioModelerTool(llm_client),
         "characteristic_reasoner": CharacteristicReasoningEngineTool(llm_client),
+        "tactics_advisor": TacticsAdvisorTool(llm_client),
         "conflict_analyzer": CharacteristicConflictAnalyzerTool(llm_client),
         "architecture_generator": ArchitectureGeneratorTool(llm_client, memory_store),
         "diagram_generator": DiagramGeneratorTool(llm_client),

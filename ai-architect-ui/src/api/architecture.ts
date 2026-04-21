@@ -1,4 +1,4 @@
-import type { ArchitectureOutput } from '../types/api';
+import type { ArchitectureOutput, DiagramCollectionDto } from '../types/api';
 import { authFetchJson } from './http';
 
 const BASE = '/api/v1/sessions';
@@ -13,11 +13,11 @@ export async function getArchitecture(
   );
 }
 
-export async function getDiagram(
+export async function getDiagramCollection(
   sessionId: string,
   token: string,
-): Promise<{ componentDiagram: string; sequenceDiagram: string }> {
-  return authFetchJson<{ componentDiagram: string; sequenceDiagram: string }>(
+): Promise<DiagramCollectionDto> {
+  return authFetchJson<DiagramCollectionDto>(
     `${BASE}/${sessionId}/diagram`,
     token,
   );

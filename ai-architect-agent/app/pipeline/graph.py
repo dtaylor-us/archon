@@ -21,6 +21,7 @@ from app.pipeline.nodes import (
     requirement_challenge,
     scenario_modeling,
     characteristic_inference,
+    tactics_recommendation,
     conflict_analysis,
     architecture_generation,
     diagram_generation,
@@ -39,12 +40,13 @@ ORDERED_STAGES: list[str] = [
     "requirement_challenge",
     "scenario_modeling",
     "characteristic_inference",
+    "tactics_recommendation",   # stage 4b — after characteristics, before conflicts
     "conflict_analysis",
     "architecture_generation",
     "diagram_generation",
     "trade_off_analysis",
     "adl_generation",
-    # Stages 9 and 10 run sequentially in the graph; the asyncio.gather
+    # Stages 10 and 11 run sequentially in the graph; the asyncio.gather
     # parallelism is handled inside the weakness_analysis node so that
     # FMEA results are available when fmea_analysis emits its event.
     "weakness_analysis",
@@ -59,6 +61,7 @@ _NODE_FN_MAP = {
     "requirement_challenge": requirement_challenge,
     "scenario_modeling": scenario_modeling,
     "characteristic_inference": characteristic_inference,
+    "tactics_recommendation": tactics_recommendation,
     "conflict_analysis": conflict_analysis,
     "architecture_generation": architecture_generation,
     "diagram_generation": diagram_generation,
@@ -166,6 +169,26 @@ async def run_pipeline(
                     stage_payload["characteristic_count"] = len(
                         context.characteristics
                     )
+                elif node_name == "tactics_recommendation":
+                    stage_payload["tactic_count"] = len(context.tactics)
+                    stage_payload["characteristics_covered"] = list({
+                        t.get("characteristic_name")
+                        for t in context.tactics
+                        if t.get("characteristic_name")
+                    })
+                    stage_payload["already_addressed_count"] = sum(
+                        1 for t in context.tactics
+                        if t.get("already_addressed")
+                    )
+                    stage_payload["new_tactics_count"] = sum(
+                        1 for t in context.tactics
+                        if not t.get("already_addressed")
+                    )
+                    stage_payload["critical_count"] = sum(
+                        1 for t in context.tactics
+                        if t.get("priority") == "critical"
+                    )
+                    stage_payload["tactics_summary"] = context.tactics_summary
                 elif node_name == "conflict_analysis":
                     stage_payload["conflict_count"] = len(
                         context.characteristic_conflicts
@@ -332,6 +355,8 @@ async def run_pipeline(
             "clarifying_questions": context.clarifying_questions,
             "scenarios": context.scenarios,
             "characteristics": context.characteristics,
+            "tactics": context.tactics,
+            "tactics_summary": context.tactics_summary,
             "characteristic_conflicts": context.characteristic_conflicts,
             "underrepresented_characteristics": context.underrepresented_characteristics,
             "overspecified_characteristics": context.overspecified_characteristics,
@@ -372,6 +397,10 @@ async def run_pipeline(
             "iteration": context.iteration,
             "structured_output": structured,
             "token_usage": context.token_usage,
+            "tactics_recommended": len(context.tactics),
+            "tactics_already_addressed": sum(
+                1 for t in context.tactics if t.get("already_addressed")
+            ),
         },
     )
 

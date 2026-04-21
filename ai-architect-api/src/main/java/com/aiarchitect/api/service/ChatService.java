@@ -21,6 +21,7 @@ public class ChatService {
     private final AgentBridgeService agentBridgeService;
     private final ArchitectureOutputService architectureOutputService;
     private final GovernanceService governanceService;
+    private final TacticsService tacticsService;
     private final UsageService usageService;
     private final ObjectMapper objectMapper;
 
@@ -103,6 +104,22 @@ public class ChatService {
                                 if (fmeaRisks != null && !fmeaRisks.isEmpty()) {
                                     governanceService.saveFmeaRisks(
                                             conversation.getId(), fmeaRisks);
+                                }
+                            }
+                            // Persist tactics if present (stage 4b)
+                            if (so != null && so.containsKey("tactics")) {
+                                try {
+                                    @SuppressWarnings("unchecked")
+                                    var tactics = (java.util.List<Map<String, Object>>)
+                                            so.get("tactics");
+                                    if (tactics != null && !tactics.isEmpty()) {
+                                        tacticsService.saveTactics(
+                                                conversation.getId(), tactics);
+                                    }
+                                } catch (Exception e) {
+                                    log.warn("Failed to persist tactics for "
+                                             + "conversation={}",
+                                             conversation.getId(), e);
                                 }
                             }
                             // Persist governance report if present

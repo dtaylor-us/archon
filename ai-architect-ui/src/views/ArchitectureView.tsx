@@ -1,12 +1,75 @@
 import { useArchitecture } from '../hooks/useArchitecture';
+import { useDiagrams } from '../hooks/useDiagrams';
+import { useTactics } from '../hooks/useTactics';
 import { MermaidDiagram } from '../components/MermaidDiagram';
+import { CopyButton } from '../components/CopyButton';
+import { StructuredDataCard, StructuredExportBar } from '../components/StructuredData';
+import type { ArchitectureOutput, DiagramCollectionDto } from '../types/api';
+
+/* ── Export helpers ─────────────────────────────── */
+
+function buildArchitectureMarkdown(
+  arch: ArchitectureOutput,
+  diagrams: DiagramCollectionDto | null,
+): string {
+  const lines: string[] = [];
+
+  lines.push('# Architecture Report', '');
+  lines.push('## Architecture Style', '', arch.style, '');
+
+  lines.push('## Components', '');
+  for (const c of arch.components) {
+    lines.push(`### ${c.name}`, c.responsibility, `*Technology: ${c.technology}*`, '');
+  }
+
+  lines.push('## Interactions', '');
+  lines.push('| From | To | Protocol | Purpose |');
+  lines.push('|------|-----|---------|---------|');
+  for (const i of arch.interactions) {
+    lines.push(`| ${i.from} | ${i.to} | \`${i.protocol}\` | ${i.purpose} |`);
+  }
+  lines.push('');
+
+  const diags = diagrams?.diagrams ?? [];
+  if (diags.length > 0) {
+    for (const d of diags) {
+      lines.push(`## ${d.title}`);
+      if (d.description) lines.push(d.description, '');
+      lines.push('```mermaid', d.mermaidSource, '```', '');
+      if (d.characteristicAddressed) lines.push(`*Addresses: ${d.characteristicAddressed}*`, '');
+    }
+  } else {
+    lines.push('## Component Diagram', '', '```mermaid', arch.componentDiagram, '```', '');
+    lines.push('## Sequence Diagram', '', '```mermaid', arch.sequenceDiagram, '```', '');
+  }
+
+  return lines.join('\n');
+}
+
+function downloadMarkdown(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── Component ───────────────────────────────────── */
 
 export function ArchitectureView() {
   const { architecture, loading, error } = useArchitecture();
+  const { collection: diagramCollection } = useDiagrams();
+  const { tactics: criticalTactics } = useTactics({ priority: 'critical', newOnly: true });
 
   if (loading) {
     return (
-      <div className="p-6 text-gray-500" data-testid="architecture-loading">
+      <div className="p-6 flex items-center gap-2 text-gray-500" data-testid="architecture-loading">
+        <svg className="w-4 h-4 animate-spin text-accent shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="8" cy="8" r="6" strokeOpacity="0.25" />
+          <path d="M8 2a6 6 0 0 1 6 6" />
+        </svg>
         Loading architecture…
       </div>
     );
@@ -25,36 +88,115 @@ export function ArchitectureView() {
 
   if (!architecture) {
     return (
-      <div className="p-6 text-gray-400 italic" data-testid="architecture-empty">
+      <div className="p-6 flex items-center gap-2 text-gray-400" data-testid="architecture-empty">
+        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
+        </svg>
         No architecture data yet. Run the pipeline first.
       </div>
     );
   }
 
+  const markdown = buildArchitectureMarkdown(architecture, diagramCollection ?? null);
+  const structured = {
+    kind: 'architecture_report',
+    conversationId: architecture.conversationId,
+    style: architecture.style,
+    components: architecture.components,
+    interactions: architecture.interactions,
+    diagrams: diagramCollection?.diagrams ?? null,
+  };
+
   return (
     <div className="p-6 space-y-8" data-testid="architecture-view">
+
+      <StructuredExportBar
+        title="Architecture Report"
+        json={structured}
+        filename="architecture-report.json"
+        extraRight={
+          <>
+            <CopyButton text={markdown} label="Copy MD" title="Copy full report as Markdown" />
+            <button
+              type="button"
+              onClick={() => downloadMarkdown('architecture-report.md', markdown)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+              title="Download Markdown file"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
+              </svg>
+              Download .md
+            </button>
+          </>
+        }
+      />
+
+      {/* Critical tactics sidebar — top 5 unaddressed critical tactics */}
+      {criticalTactics.length > 0 && (
+        <section data-testid="critical-tactics-sidebar">
+          <h2 className="text-sm font-semibold text-red-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2L1 14h14L8 2z" /><path d="M8 7v3M8 11.5v.5" />
+            </svg>
+            Critical unaddressed tactics
+          </h2>
+          <div className="bg-red-50 border border-red-100 rounded-xl p-3 space-y-2">
+            {criticalTactics.slice(0, 5).map((t) => (
+              <div key={t.id} className="flex items-start gap-2">
+                <span className="text-red-400 mt-0.5 text-xs shrink-0">▸</span>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{t.tacticName}</p>
+                  <p className="text-xs text-gray-500">{t.characteristicName} — {t.effort} effort</p>
+                </div>
+              </div>
+            ))}
+            <p className="text-xs text-red-500 italic pt-1">
+              See Governance → Tactics for full details.
+            </p>
+          </div>
+        </section>
+      )}
+
       {/* Summary */}
-      <section>
-        <h2 className="text-lg font-bold text-gray-800 mb-2">
-          Architecture Style
-        </h2>
-        <p className="text-sm text-gray-700 bg-gray-50 rounded p-3">
-          {architecture.style}
-        </p>
-      </section>
+      <StructuredDataCard
+        title="Architecture Style"
+        subtitle="Primary chosen architecture style"
+        fields={[
+          { label: 'Conversation ID', value: architecture.conversationId, fieldKey: 'conversationId' },
+          { label: 'Style', value: architecture.style, fieldKey: 'style' },
+        ]}
+        copyValue={JSON.stringify({ conversationId: architecture.conversationId, style: architecture.style }, null, 2)}
+        data-testid="architecture-style-card"
+      />
 
       {/* Components */}
       <section>
-        <h2 className="text-lg font-bold text-gray-800 mb-2">Components</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-gray-800">Components</h2>
+          <CopyButton
+            text={architecture.components.map((c) => `${c.name}: ${c.responsibility} (${c.technology})`).join('\n')}
+            label="Copy all"
+            title="Copy all components as text"
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3" data-structured-section="components">
           {architecture.components.map((c) => (
             <div
               key={c.name}
-              className="border border-gray-200 rounded p-3 bg-white"
+              className="group relative border border-gray-200 rounded-lg p-3 bg-white hover:border-gray-300 hover:shadow-sm transition-all"
+              data-component-name={c.name}
             >
-              <h3 className="font-semibold text-sm">{c.name}</h3>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-semibold text-sm">{c.name}</h3>
+                <CopyButton
+                  text={`${c.name}: ${c.responsibility} (${c.technology})`}
+                  className="opacity-0 group-hover:opacity-100"
+                  title={`Copy ${c.name}`}
+                />
+              </div>
               <p className="text-xs text-gray-600 mt-1">{c.responsibility}</p>
-              <span className="inline-block mt-1 text-xs bg-emerald-50 text-emerald-700 rounded px-2 py-0.5">
+              <span className="inline-block mt-1.5 text-xs bg-emerald-50 text-emerald-700 rounded px-2 py-0.5">
                 {c.technology}
               </span>
             </div>
@@ -64,24 +206,40 @@ export function ArchitectureView() {
 
       {/* Interactions */}
       <section>
-        <h2 className="text-lg font-bold text-gray-800 mb-2">Interactions</h2>
-        <div className="overflow-x-auto">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-gray-800">Interactions</h2>
+          <CopyButton
+            text={['| From | To | Protocol | Purpose |', '|------|-----|---------|---------|',
+              ...architecture.interactions.map((i) => `| ${i.from} | ${i.to} | ${i.protocol} | ${i.purpose} |`)
+            ].join('\n')}
+            label="Copy table"
+            title="Copy as Markdown table"
+          />
+        </div>
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="text-sm w-full border-collapse">
             <thead>
-              <tr className="bg-gray-100">
-                <th className="border p-2 text-left">From</th>
-                <th className="border p-2 text-left">To</th>
-                <th className="border p-2 text-left">Protocol</th>
-                <th className="border p-2 text-left">Purpose</th>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">From</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">To</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Protocol</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Purpose</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100" data-structured-section="interactions">
               {architecture.interactions.map((i, idx) => (
-                <tr key={idx} className="odd:bg-white even:bg-gray-50">
-                  <td className="border p-2">{i.from}</td>
-                  <td className="border p-2">{i.to}</td>
-                  <td className="border p-2 font-mono text-xs">{i.protocol}</td>
-                  <td className="border p-2">{i.purpose}</td>
+                <tr
+                  key={idx}
+                  className="hover:bg-gray-50 transition-colors"
+                  data-interaction-index={idx}
+                  data-from={i.from}
+                  data-to={i.to}
+                  data-protocol={i.protocol}
+                >
+                  <td className="px-3 py-2 font-medium text-gray-800">{i.from}</td>
+                  <td className="px-3 py-2 text-gray-700">{i.to}</td>
+                  <td className="px-3 py-2"><code className="text-xs bg-gray-100 rounded px-1.5 py-0.5 font-mono">{i.protocol}</code></td>
+                  <td className="px-3 py-2 text-gray-600">{i.purpose}</td>
                 </tr>
               ))}
             </tbody>
@@ -90,25 +248,57 @@ export function ArchitectureView() {
       </section>
 
       {/* Diagrams */}
-      <section>
-        <h2 className="text-lg font-bold text-gray-800 mb-2">
-          Component Diagram
-        </h2>
-        <MermaidDiagram
-          chart={architecture.componentDiagram}
-          id="component-diagram"
-        />
-      </section>
+      {diagramCollection && diagramCollection.diagrams.length > 0 ? (
+        diagramCollection.diagrams.map((diagram) => (
+          <section key={diagram.diagramId}>
+            <div className="flex items-start justify-between gap-2 mb-1">
+              <h2 className="text-lg font-bold text-gray-800">{diagram.title}</h2>
+              <CopyButton
+                text={diagram.mermaidSource}
+                label="Copy source"
+                title="Copy Mermaid source"
+                className="shrink-0 mt-0.5"
+              />
+            </div>
+            {diagram.description && (
+              <p className="text-xs text-gray-500 mb-2">{diagram.description}</p>
+            )}
+            <MermaidDiagram
+              chart={diagram.mermaidSource}
+              id={`diagram-${diagram.diagramId}`}
+            />
+            {diagram.characteristicAddressed && (
+              <p className="text-xs text-gray-400 mt-1 italic">
+                Addresses: {diagram.characteristicAddressed}
+              </p>
+            )}
+          </section>
+        ))
+      ) : (
+        <>
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-bold text-gray-800">Component Diagram</h2>
+              <CopyButton text={architecture.componentDiagram} label="Copy source" title="Copy Mermaid source" />
+            </div>
+            <MermaidDiagram
+              chart={architecture.componentDiagram}
+              id="component-diagram"
+            />
+          </section>
 
-      <section>
-        <h2 className="text-lg font-bold text-gray-800 mb-2">
-          Sequence Diagram
-        </h2>
-        <MermaidDiagram
-          chart={architecture.sequenceDiagram}
-          id="sequence-diagram"
-        />
-      </section>
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-bold text-gray-800">Sequence Diagram</h2>
+              <CopyButton text={architecture.sequenceDiagram} label="Copy source" title="Copy Mermaid source" />
+            </div>
+            <MermaidDiagram
+              chart={architecture.sequenceDiagram}
+              id="sequence-diagram"
+            />
+          </section>
+        </>
+      )}
     </div>
   );
 }

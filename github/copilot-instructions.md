@@ -323,3 +323,73 @@ If a command fails, fix all failures before proceeding.
 Do not suppress failures by modifying coverage thresholds,
 adding skip annotations, or excluding additional files from
 coverage without an explicit justification comment.
+
+---
+
+### RULE T-5 — Fix test regressions before proceeding
+
+When a new feature changes a count, shape, or contract that
+existing tests assert, update those tests immediately — in the
+same session, before running any other feature work.
+
+Do not leave broken tests in the repository with a note saying
+"will fix later". A red test suite blocks the next developer who
+pulls the branch.
+
+Common sources of regressions in this codebase:
+- Adding or removing a pipeline stage changes ORDERED_STAGES
+  length assertions in test_pipeline_reiteration.py and stage
+  count assertions in StageProgress.test.tsx and
+  useConversation.test.ts.
+- Adding a new API endpoint changes route count assertions in
+  integration tests.
+- Adding a field to ArchitectureContext with no default value
+  breaks any test that constructs the model explicitly.
+
+---
+
+### RULE T-6 — Integration tests must use Testcontainers for PostgreSQL
+
+Never configure integration tests to use an in-memory database
+(H2). All integration tests that touch repository or service
+layers must start a real PostgreSQL instance via Testcontainers.
+
+This ensures Flyway migrations are exercised and JSONB column
+types behave identically in tests and production.
+
+The base configuration lives in AbstractIntegrationTest.java.
+Every integration test class must extend it.
+
+---
+
+### RULE T-7 — Pipeline stage additions require atomic updates across all layers
+
+When adding a new pipeline stage, every location that encodes the
+stage list must be updated in the same commit. A partial update
+will break tests in a different layer and confuse downstream
+consumers.
+
+Checklist for adding a pipeline stage:
+
+| File | What to update |
+|------|----------------|
+| `ai-architect-agent/app/pipeline/graph.py` | Add stage name to `ORDERED_STAGES` |
+| `ai-architect-agent/app/pipeline/nodes.py` | Implement the stage node function |
+| `ai-architect-agent/app/tools/registry.py` | Register the tool used by the stage |
+| `ai-architect-ui/src/types/api.ts` | Add stage name to `PIPELINE_STAGES` |
+| `ai-architect-ui/src/components/StageProgress.tsx` | Add label to `STAGE_LABELS` |
+| `ai-architect/ARCHITECTURE.md` | Add stage to PIPELINE DEFINITION STAGES list |
+| `tests/unit/test_pipeline_reiteration.py` | Update `len(ORDERED_STAGES)` assertion |
+| `tests/unit/test_pipeline_nodes.py` | Add mock and test for the new node |
+| `src/test/StageProgress.test.tsx` | Update stage count assertion |
+| `src/test/useConversation.test.ts` | Update stage count assertion |
+
+The stage name must be identical (exact snake_case string) in every
+location. A mismatch between the Python name and the TypeScript name
+will cause the UI progress bar to silently skip the stage.
+
+After adding a stage, run all three test suites before declaring
+the work complete:
+  pytest tests/unit/ -v
+  npm test
+  mvn test

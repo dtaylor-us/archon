@@ -5,6 +5,68 @@ from pydantic import BaseModel, Field
 import uuid
 
 
+class TacticRecommendation(BaseModel):
+    """A single architecture tactic recommended for one quality attribute.
+
+    Sourced from Bass, Clements, Kazman "Software Architecture in Practice"
+    4th edition (SEI/Addison-Wesley 2021) chapters 4-12, supplemented by
+    SEI technical reports.
+
+    A tactic is a focused design decision that influences a single quality
+    attribute response. It is NOT an architecture style, technology choice,
+    or vague best practice.
+    """
+
+    tactic_id: str
+    # Sequential identifier e.g. TAC-001
+
+    characteristic_name: str
+    # The quality attribute this tactic addresses.
+    # Must match a name from ArchitectureContext.characteristics.
+
+    tactic_name: str
+    # Canonical name from the Bass/Clements/Kazman catalog.
+    # Examples: "Heartbeat", "Active Redundancy", "Parameterise",
+    # "Bound Queue Sizes", "Encrypt Data"
+
+    category: str
+    # Sub-grouping within the QA tactic set.
+    # Examples: "Fault Detection", "Fault Recovery",
+    # "Control Resource Demand", "Resist Attacks"
+
+    description: str
+    # One sentence: what this tactic does and how it works.
+    # Must match the Bass/Clements/Kazman definition.
+    # Minimum 20 characters — enforced by TacticsAdvisorTool._validate_tactic.
+
+    concrete_application: str
+    # How this tactic applies to THIS specific system.
+    # Not generic advice. Must reference actual components from
+    # architecture_design.components where possible.
+    # Minimum 30 characters — enforced by TacticsAdvisorTool._validate_tactic.
+
+    implementation_examples: list[str]
+    # 2-3 concrete, technology-specific examples from the catalog.
+
+    already_addressed: bool
+    # True if the current architecture_design already implements
+    # this tactic in some form.
+
+    address_evidence: str = ""
+    # If already_addressed is True: which component or decision implements it.
+    # If False: empty string.
+
+    effort: Literal["low", "medium", "high"]
+    # low:    configuration or minor code change
+    # medium: new component or significant refactor
+    # high:   architectural change or new infrastructure
+
+    priority: Literal["critical", "recommended", "optional"]
+    # critical:    directly serves a primary characteristic
+    # recommended: serves a secondary characteristic
+    # optional:    useful but not essential for this system
+
+
 class DiagramType(str, Enum):
     """Supported Mermaid diagram types.
 
@@ -123,6 +185,15 @@ class ArchitectureContext(BaseModel):
 
     # Stage 4 — populated by CharacteristicReasoningEngine
     characteristics: list[dict] = Field(default_factory=list)
+
+    # Stage 4b — populated by TacticsAdvisorTool
+    # Runs after CharacteristicReasoningEngine, before ConflictAnalyzer.
+    # Each entry is a TacticRecommendation serialised to dict via model_dump().
+    tactics: list[dict] = Field(default_factory=list)
+
+    tactics_summary: str = ""
+    # One paragraph summarising the most important tactics across all
+    # characteristics for this system.
 
     # Stage 5 — populated by CharacteristicConflictAnalyzer
     characteristic_conflicts: list[dict] = Field(default_factory=list)

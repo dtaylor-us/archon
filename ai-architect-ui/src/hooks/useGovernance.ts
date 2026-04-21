@@ -15,6 +15,7 @@ import { ApiError } from '../api/http';
 export function useGovernance() {
   const token = useStore((s) => s.token);
   const conversationId = useStore((s) => s.conversationId);
+  const pipelineVersion = useStore((s) => s.pipelineVersion);
 
   const [tradeOffs, setTradeOffs] = useState<TradeOffDecision[]>([]);
   const [adl, setAdl] = useState<AdlDocument | null>(null);
@@ -54,11 +55,15 @@ export function useGovernance() {
     } finally {
       setLoading(false);
     }
-  }, [token, conversationId]);
+  }, [token, conversationId, pipelineVersion]);
 
   useEffect(() => {
+    if (pipelineVersion > 0) {
+      const id = setTimeout(() => { fetchAll(); }, 1500);
+      return () => clearTimeout(id);
+    }
     fetchAll();
-  }, [fetchAll]);
+  }, [fetchAll, pipelineVersion]);
 
   return {
     tradeOffs,

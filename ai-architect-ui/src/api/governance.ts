@@ -4,6 +4,8 @@ import type {
   WeaknessReport,
   FmeaEntry,
   GovernanceReport,
+  TacticRecommendation,
+  TacticsSummary,
 } from '../types/api';
 import { authFetchJson } from './http';
 
@@ -74,6 +76,32 @@ export async function getGovernanceReport(
 ): Promise<GovernanceReport> {
   return authFetchJson<GovernanceReport>(
     `${BASE}/${sessionId}/governance`,
+    token,
+  );
+}
+
+export async function getTactics(
+  sessionId: string,
+  token: string,
+  params?: { characteristic?: string; priority?: string; newOnly?: boolean },
+): Promise<TacticRecommendation[]> {
+  const qs = new URLSearchParams();
+  if (params?.characteristic) qs.set('characteristic', params.characteristic);
+  if (params?.priority) qs.set('priority', params.priority);
+  if (params?.newOnly) qs.set('newOnly', 'true');
+  const query = qs.toString() ? `?${qs.toString()}` : '';
+  return authFetchJson<TacticRecommendation[]>(
+    `${BASE}/${sessionId}/tactics${query}`,
+    token,
+  );
+}
+
+export async function getTacticsSummary(
+  sessionId: string,
+  token: string,
+): Promise<TacticsSummary> {
+  return authFetchJson<TacticsSummary>(
+    `${BASE}/${sessionId}/tactics/summary`,
     token,
   );
 }

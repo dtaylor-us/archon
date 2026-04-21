@@ -49,6 +49,9 @@ Each ADL block is self-contained and can be independently converted into an exec
 | ADL-023  | UI                  | Token storage prohibition      | Custom fitness function via grep    | Hard        |
 | ADL-024  | Cross-service       | Database access prohibition    | PyTestArch Python library           | Hard        |
 | ADL-025  | Cross-service       | Qdrant access prohibition      | ArchUnit Java library               | Hard        |
+| ADL-026  | Cross-service       | Tactic entity domain isolation | Custom fitness function via grep    | Hard        |
+| ADL-027  | API Gateway         | Tactic write path enforcement  | Custom fitness function via grep    | Hard        |
+| ADL-028  | Agent Orchestration | Tactic catalog enforcement     | Custom fitness function via Semgrep | Hard        |
 
 ## ADL blocks
 
@@ -597,6 +600,75 @@ DEFINE SYSTEM AI Architect Assistant AS com.aiarchitect
 ASSERT(API Gateway Service has NO DEPENDENCY ON Qdrant Java Client)
 ```
 
+```text
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ADL-026: CROSS-SERVICE — TACTIC ENTITY DOMAIN ISOLATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REQUIRES Custom fitness function via grep
+DESCRIPTION Ensures the ArchitectureTactic entity lives exclusively in ai-architect-api.
+The Python agent must never import or reference the Java entity directly.
+PROMPT Based on this pseudo-code, write a bash fitness function that:
+1. Verifies no Python file under ai-architect-agent/ contains the string "ArchitectureTactic" as a type reference.
+2. Verifies no Python file under ai-architect-agent/ imports from any Java package.
+Emit a PASS or FAIL result with file and line details on failure.
+
+DEFINE SYSTEM AI Architect Assistant
+  DEFINE SERVICE API Gateway Service AS ai-architect-api
+  DEFINE SERVICE Agent Orchestration Service AS ai-architect-agent
+  DEFINE COMPONENT Tactic Entity AS com.aiarchitect.api.domain.model.ArchitectureTactic
+
+ASSERT(Tactic Entity CONTAINED WITHIN API Gateway Service)
+ASSERT(Agent Orchestration Service has NO DEPENDENCY ON Tactic Entity)
+```
+
+```text
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ADL-027: API GATEWAY — TACTIC WRITE PATH ENFORCEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REQUIRES Custom fitness function via grep
+DESCRIPTION Ensures tactics are written to the database only from ChatService.doOnComplete()
+via TacticsService.saveTactics(). No other write path is permitted; controllers
+and other services must never call TacticRepository directly.
+PROMPT Based on this pseudo-code, write a bash fitness function that:
+1. Scans all Java files under ai-architect-api/src/ for calls to TacticRepository.save or TacticRepository.saveAll.
+2. Flags any caller that is NOT TacticsService.
+3. Scans all Java files for calls to tacticsService.saveTactics and flags any caller that is NOT ChatService.
+Emit PASS if no violations are found, FAIL with file and line details otherwise.
+
+DEFINE SYSTEM AI Architect Assistant
+  DEFINE SERVICE API Gateway Service AS com.aiarchitect.api
+  DEFINE COMPONENT ChatService AS com.aiarchitect.api.service.ChatService
+  DEFINE COMPONENT TacticsService AS com.aiarchitect.api.service.TacticsService
+  DEFINE COMPONENT TacticRepository AS com.aiarchitect.api.domain.repository.TacticRepository
+
+ASSERT(TacticRepository EXCLUSIVELY ACCESSED BY TacticsService)
+ASSERT(TacticsService.saveTactics EXCLUSIVELY CALLED BY ChatService)
+```
+
+```text
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ADL-028: AGENT ORCHESTRATION — TACTIC CATALOG ENFORCEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REQUIRES Custom fitness function via Semgrep
+DESCRIPTION Ensures TacticsAdvisorTool only recommends tactics from the Bass, Clements, and
+Kazman "Software Architecture in Practice" catalog embedded in tactics_advisor.j2.
+The LLM prompt must reference the catalog template; ad-hoc tactic names must not
+be hardcoded in the Python tool itself.
+PROMPT Based on this pseudo-code, write a Semgrep YAML rule that:
+1. Detects any string literal in app/tools/tactics_advisor.py that looks like a tactic name
+   (heuristic: title-case multi-word string longer than 10 chars not adjacent to a known variable name).
+2. Flags it as a violation: tactic names must live in tactics_advisor.j2, not in Python source.
+Emit the rule in standard Semgrep YAML format with message, severity: WARNING, and languages: [python].
+
+DEFINE SYSTEM AI Architect Assistant
+  DEFINE SERVICE Agent Orchestration Service AS ai-architect-agent
+  DEFINE COMPONENT TacticsAdvisorTool AS app.tools.tactics_advisor.TacticsAdvisorTool
+  DEFINE COMPONENT TacticsCatalog AS app.prompts.tactics_advisor
+
+ASSERT(TacticsAdvisorTool DEPENDS ON TacticsCatalog EXCLUSIVELY)
+ASSERT(TacticsAdvisorTool has NO hardcoded tactic names in Python source)
+```
+
 ## Enforcement levels
 
 | Block ID | Enforcement | Rationale |
@@ -626,3 +698,6 @@ ASSERT(API Gateway Service has NO DEPENDENCY ON Qdrant Java Client)
 | ADL-023  | Hard        | Storing tokens in localStorage or sessionStorage exposes them to cross-site scripting (XSS) attacks, creating a security vulnerability. |
 | ADL-024  | Hard        | The agent service must not access PostgreSQL directly; only the API service owns relational data. A violation would bypass schema management and split data ownership. |
 | ADL-025  | Hard        | The API service must not access Qdrant directly; only the agent service owns vector data. A violation would bypass the MemoryStore abstraction and split data ownership. |
+| ADL-026  | Hard        | The ArchitectureTactic entity is owned exclusively by the API service; agent code must not reference it directly. A violation would split domain ownership and couple the Python agent to the Java persistence model. |
+| ADL-027  | Hard        | Tactics must only be written through TacticsService.saveTactics() called from ChatService.doOnComplete(). A second write path would create duplicate records and race conditions with the pipeline streaming response. |
+| ADL-028  | Hard        | Tactic names must live in the Jinja2 catalog template, not hardcoded in Python. Inline names bypass the Bass/Clements/Kazman catalog constraint and make the tool unauditable. |
