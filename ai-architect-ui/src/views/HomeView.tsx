@@ -28,7 +28,7 @@ export function HomeView({
   const artifacts = [
     'Architecture diagrams (C4 container plus type-selected Mermaid)',
     'Trade-off record with documented decisions and scale testing',
-    'ADL specification with executable governance rules',
+    'Mark Richards ADL specification with executable governance rules',
     'FMEA risk analysis with RPN scores',
     'Architecture tactics report',
     'Governance score with confidence level and dimension breakdown',
@@ -59,8 +59,11 @@ export function HomeView({
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl md:text-3xl font-semibold text-gray-900">
-                Archon AI Architect
+                Archon
               </h1>
+              <p className="text-base font-medium text-gray-500 mt-1 tracking-wide">
+                An AI assistant for software architects
+              </p>
               <p className="text-[15px] text-gray-600 mt-2 leading-relaxed max-w-3xl">
                 Archon is not a chatbot. It is a staged architecture reasoning pipeline that decomposes
                 design thinking into a governed, inspectable process.
@@ -86,15 +89,12 @@ export function HomeView({
                     <path d="M6 3l5 5-5 5" />
                   </svg>
                 </button>
-                <p className="text-[12px] text-gray-500">
-                  No live data, no background calls — just the pipeline structure and what you’ll get out.
-                </p>
               </div>
             </div>
           </div>
         </header>
 
-        <div className="mt-10 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-8">
+        <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
           <main className="min-w-0 space-y-10">
             <section
               className="archon-reveal"
@@ -102,9 +102,25 @@ export function HomeView({
               aria-labelledby="pipeline-title"
             >
               <div className="flex items-baseline justify-between gap-3">
-                <h2 id="pipeline-title" className="text-lg font-bold text-gray-900">
-                  Pipeline stages
-                </h2>
+                <div className="flex items-center gap-2">
+                  <svg
+                    className="w-4 h-4 text-gray-700"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 4h10M3 8h10M3 12h10" />
+                    <path d="M6 4v8" />
+                    <path d="M10 8v4" />
+                  </svg>
+                  <h2 id="pipeline-title" className="text-lg font-bold text-gray-900">
+                    Pipeline stages
+                  </h2>
+                </div>
                 <p className="text-xs text-gray-500">
                   Monitored as a structured run, not a single response.
                 </p>
@@ -152,48 +168,170 @@ export function HomeView({
               style={{ ['--reveal-delay' as any]: '140ms' }}
               aria-labelledby="capabilities-title"
             >
-              <h2 id="capabilities-title" className="text-lg font-bold text-gray-900">
-                Key capabilities
-              </h2>
+              <div className="flex items-center gap-2">
+                <svg
+                  className="w-4 h-4 text-gray-700"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M8 1.5v2.5M8 12v2.5" />
+                  <path d="M1.5 8h2.5M12 8h2.5" />
+                  <path d="M3.2 3.2l1.8 1.8M11 11l1.8 1.8" />
+                  <path d="M12.8 3.2L11 5M5 11l-1.8 1.8" />
+                  <circle cx="8" cy="8" r="2.5" />
+                </svg>
+                <h2 id="capabilities-title" className="text-lg font-bold text-gray-900">
+                  Key capabilities
+                </h2>
+              </div>
 
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                 <article className="rounded-xl border border-gray-200 bg-white p-4">
-                  <h3 className="text-sm font-semibold text-gray-900">Architecture style selection</h3>
+                  <div className="flex items-start gap-2">
+                    <svg
+                      className="w-4 h-4 text-gray-700 mt-0.5 shrink-0"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M2.5 12.5h11" />
+                      <path d="M4 11V5" />
+                      <path d="M8 11V3.5" />
+                      <path d="M12 11V7" />
+                    </svg>
+                    <h3 className="text-sm font-semibold text-gray-900">Architecture style selection</h3>
+                  </div>
                   <p className="text-sm text-gray-600 mt-1 leading-relaxed">
                     Scores all eight Mark Richards architecture styles against inferred characteristics, applies veto
                     rules, and never defaults to layered architecture without justification.
                   </p>
                 </article>
                 <article className="rounded-xl border border-gray-200 bg-white p-4">
-                  <h3 className="text-sm font-semibold text-gray-900">Architecture tactics</h3>
+                  <div className="flex items-start gap-2">
+                    <svg
+                      className="w-4 h-4 text-gray-700 mt-0.5 shrink-0"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M3 4.5h10" />
+                      <path d="M3 8h10" />
+                      <path d="M3 11.5h6" />
+                      <path d="M11.2 10.2l1.3 1.3 2-2" />
+                    </svg>
+                    <h3 className="text-sm font-semibold text-gray-900">Architecture tactics</h3>
+                  </div>
                   <p className="text-sm text-gray-600 mt-1 leading-relaxed">
                     Recommends named tactics from the Bass, Clements, Kazman catalog for each quality attribute and
                     identifies which are already addressed and which are not.
                   </p>
                 </article>
                 <article className="rounded-xl border border-gray-200 bg-white p-4">
-                  <h3 className="text-sm font-semibold text-gray-900">Buy vs build analysis</h3>
+                  <div className="flex items-start gap-2">
+                    <svg
+                      className="w-4 h-4 text-gray-700 mt-0.5 shrink-0"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 3.5h6" />
+                      <path d="M4 6.5h8" />
+                      <path d="M3.5 6.5v6a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-6" />
+                      <path d="M6.2 9.2h3.6" />
+                    </svg>
+                    <h3 className="text-sm font-semibold text-gray-900">Buy vs build analysis</h3>
+                  </div>
                   <p className="text-sm text-gray-600 mt-1 leading-relaxed">
                     Evaluates each architecture component for build, buy, or adopt. Names real products and open-source
                     projects and warns when recommendations conflict with stated preferences.
                   </p>
                 </article>
                 <article className="rounded-xl border border-gray-200 bg-white p-4">
-                  <h3 className="text-sm font-semibold text-gray-900">Executable governance</h3>
+                  <div className="flex items-start gap-2">
+                    <svg
+                      className="w-4 h-4 text-gray-700 mt-0.5 shrink-0"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6.5 2.5h6v11h-9v-8" />
+                      <path d="M3.5 5.5l3-3" />
+                      <path d="M3.5 5.5h3v-3" />
+                      <path d="M6 8h4" />
+                      <path d="M6 10.5h4" />
+                    </svg>
+                    <h3 className="text-sm font-semibold text-gray-900">Executable governance</h3>
+                  </div>
                   <p className="text-sm text-gray-600 mt-1 leading-relaxed">
-                    Generates Architecture Definition Language blocks following the Mark Richards ADL specification.
+                    Generates Architecture Definition Language (Mark Richards ADL) blocks with executable rules.
                     Rules compile to runnable ArchUnit, PyTestArch, and Semgrep tests.
                   </p>
                 </article>
                 <article className="rounded-xl border border-gray-200 bg-white p-4">
-                  <h3 className="text-sm font-semibold text-gray-900">FMEA and weakness analysis</h3>
+                  <div className="flex items-start gap-2">
+                    <svg
+                      className="w-4 h-4 text-gray-700 mt-0.5 shrink-0"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M2.5 12.5h11" />
+                      <path d="M4 12.5V9" />
+                      <path d="M8 12.5V6.5" />
+                      <path d="M12 12.5V4.5" />
+                      <path d="M4 9l4-2.5L12 4.5" />
+                    </svg>
+                    <h3 className="text-sm font-semibold text-gray-900">FMEA and weakness analysis</h3>
+                  </div>
                   <p className="text-sm text-gray-600 mt-1 leading-relaxed">
                     Scores failure modes with Risk Priority Number, identifies cascading failures across service
                     boundaries, and classifies graceful versus catastrophic degradation.
                   </p>
                 </article>
                 <article className="rounded-xl border border-gray-200 bg-white p-4">
-                  <h3 className="text-sm font-semibold text-gray-900">Architecture review agent</h3>
+                  <div className="flex items-start gap-2">
+                    <svg
+                      className="w-4 h-4 text-gray-700 mt-0.5 shrink-0"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6.5 3.5h7v9h-7" />
+                      <path d="M6.5 5.5H3.5v5h3" />
+                      <path d="M8.8 8h2.4" />
+                      <path d="M9.8 7l1 1-1 1" />
+                    </svg>
+                    <h3 className="text-sm font-semibold text-gray-900">Architecture review agent</h3>
+                  </div>
                   <p className="text-sm text-gray-600 mt-1 leading-relaxed">
                     A separate review agent challenges assumptions, stress-tests trade-offs, audits ADL enforceability,
                     and produces a governance score (0–100) across five dimensions.
@@ -207,9 +345,26 @@ export function HomeView({
               style={{ ['--reveal-delay' as any]: '200ms' }}
               aria-labelledby="difference-title"
             >
-              <h2 id="difference-title" className="text-lg font-bold text-gray-900">
-                Why it’s different
-              </h2>
+              <div className="flex items-center gap-2">
+                <svg
+                  className="w-4 h-4 text-gray-700"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M2.5 4.5h11" />
+                  <path d="M2.5 8h7" />
+                  <path d="M2.5 11.5h9" />
+                  <path d="M12.2 7.2l1.3 1.3 2-2" />
+                </svg>
+                <h2 id="difference-title" className="text-lg font-bold text-gray-900">
+                  Why it’s different
+                </h2>
+              </div>
 
               <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4">
                 <p className="text-sm text-gray-700 leading-relaxed">
@@ -243,15 +398,31 @@ export function HomeView({
             </section>
           </main>
 
-          <aside className="space-y-10">
+          <aside className="space-y-6 lg:sticky lg:top-6 self-start">
             <section
               className="archon-reveal"
               style={{ ['--reveal-delay' as any]: '110ms' }}
               aria-labelledby="artifacts-title"
             >
-              <h2 id="artifacts-title" className="text-lg font-bold text-gray-900">
-                Output artifacts
-              </h2>
+              <div className="flex items-center gap-2">
+                <svg
+                  className="w-4 h-4 text-gray-700"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 2.5h7v11h-9v-9" />
+                  <path d="M3 4.5l2-2" />
+                  <path d="M3 4.5h2v-2" />
+                </svg>
+                <h2 id="artifacts-title" className="text-lg font-bold text-gray-900">
+                  Output artifacts
+                </h2>
+              </div>
               <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4">
                 <ul className="space-y-2 text-sm text-gray-700">
                   {artifacts.map((a) => (
@@ -269,15 +440,75 @@ export function HomeView({
             <section
               className="archon-reveal"
               style={{ ['--reveal-delay' as any]: '170ms' }}
+              aria-labelledby="adl-title"
+            >
+              <div className="flex items-center gap-2">
+                <svg
+                  className="w-4 h-4 text-gray-700"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3.5 2.5h9v11h-9z" />
+                  <path d="M5.5 5.5h5" />
+                  <path d="M5.5 8h5" />
+                  <path d="M5.5 10.5h3.5" />
+                </svg>
+                <h2 id="adl-title" className="text-lg font-bold text-gray-900">
+                  Mark Richards ADL
+                </h2>
+              </div>
+              <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4">
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  Governance isn’t a PDF appendix. Archon produces ADL blocks intended to be enforceable via runnable
+                  rules (ArchUnit, PyTestArch, Semgrep).
+                </p>
+                <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <pre className="text-[12px] leading-relaxed text-gray-700 font-mono whitespace-pre-wrap">
+                    {[
+                      'ADL {',
+                      '  rule "services must not call DB directly"',
+                      '  enforce via: ArchUnit | PyTestArch | Semgrep',
+                      '}',
+                    ].join('\n')}
+                  </pre>
+                </div>
+              </div>
+            </section>
+
+            <section
+              className="archon-reveal"
+              style={{ ['--reveal-delay' as any]: '230ms' }}
               aria-labelledby="start-title"
             >
-              <h2 id="start-title" className="text-lg font-bold text-gray-900">
-                Start a run
-              </h2>
+              <div className="flex items-center gap-2">
+                <svg
+                  className="w-4 h-4 text-gray-700"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8h10" />
+                  <path d="M9.5 5.5L13 8l-3.5 2.5" />
+                  <path d="M3.5 3.5h9" />
+                  <path d="M3.5 12.5h7" />
+                </svg>
+                <h2 id="start-title" className="text-lg font-bold text-gray-900">
+                  Start a run
+                </h2>
+              </div>
               <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
                 <p className="text-sm text-gray-700 leading-relaxed">
-                  You’ll provide a requirements description. Archon will execute the full pipeline and stream each stage
-                  as it completes.
+                  Provide a requirements description. Archon executes the full pipeline and streams stage progress as it
+                  completes.
                 </p>
                 <button
                   type="button"
@@ -285,13 +516,28 @@ export function HomeView({
                   className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 transition-colors"
                 >
                   Continue to chat
-                  <span className="font-mono text-[12px] text-gray-500" aria-hidden="true">
-                    /chat
-                  </span>
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 3l5 5-5 5" />
+                  </svg>
                 </button>
-                <p className="text-[11px] text-gray-500 mt-2">
-                  Tip: stage identifiers and artifacts are designed to be inspectable and exportable.
-                </p>
+                <div className="mt-3 flex items-start gap-2 text-[11px] text-gray-500">
+                  <span className="font-mono shrink-0" aria-hidden="true">
+                    ::
+                  </span>
+                  <p>
+                    Stage identifiers, intermediate artifacts, and exports are designed to be inspectable — not hidden
+                    reasoning.
+                  </p>
+                </div>
               </div>
             </section>
           </aside>

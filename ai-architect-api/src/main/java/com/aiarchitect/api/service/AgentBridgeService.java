@@ -29,9 +29,12 @@ public class AgentBridgeService {
      */
     public Flux<AgentResponse> stream(AgentRequest request) {
         return agentHttpClient.stream(request)
-                // Parse each line into an AgentResponse
+                // Drop SSE keepalive comments (": heartbeat") and blank lines
+                // BEFORE map() — Reactor map() must never receive a line that
+                // would produce a null, as returning null from map() throws NPE.
+                .filter(line -> line != null && !line.isBlank() && !line.startsWith(":"))
+                // Parse each qualifying line into an AgentResponse
                 .map(this::parseLine)
-                .filter(r -> r != null)
                 // Convert non-AgentCommunicationException errors to AgentCommunicationException
                 .onErrorMap(
                     e -> !(e instanceof AgentCommunicationException),
@@ -41,20 +44,16 @@ public class AgentBridgeService {
 
     /**
      * Parses a JSON line into an AgentResponse object.
-     * Returns an error response if parsing fails.
-     * 
-     * @param line the JSON string to parse
+     * Returns an ERROR-typed response if parsing fails.
+     * Never returns null — blank/comment lines must be filtered upstream.
+     *
+     * @param line the JSON string to parse (non-null, non-blank, non-comment)
      * @return parsed AgentResponse or error response on failure
      */
     private AgentResponse parseLine(String line) {
-        if (line != null && line.startsWith(":")) {
-            // Keepalive comment line from the agent. Not JSON, intentionally ignored.
-            return null;
-        }
         try {
             return objectMapper.readValue(line, AgentResponse.class);
         } catch (JsonProcessingException e) {
-            // Log unparseable chunks and return error response
             log.warn("Unparseable agent chunk: {}", line);
             AgentResponse err = new AgentResponse();
             err.setType(AgentResponse.EventType.ERROR);

@@ -41,12 +41,13 @@ describe('ChatView', () => {
     expect(examples.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('callsSendMessageOnExampleClick', async () => {
+  it('prefillsInputOnExampleClick', async () => {
     const user = userEvent.setup();
     render(<ChatView />);
     const examples = screen.getAllByTestId('example-prompt');
     await user.click(examples[0]);
-    expect(mockSendMessage).toHaveBeenCalled();
+    const input = screen.getByTestId('chat-input') as HTMLTextAreaElement;
+    expect(input.value.length).toBeGreaterThan(20);
   });
 
   it('showsConversationAfterSubmit', async () => {

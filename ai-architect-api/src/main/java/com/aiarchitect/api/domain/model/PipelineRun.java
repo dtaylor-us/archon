@@ -2,6 +2,8 @@ package com.aiarchitect.api.domain.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcType;
+import org.hibernate.dialect.PostgreSQLEnumJdbcType;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -35,6 +37,7 @@ public class PipelineRun {
 
     @Enumerated(EnumType.STRING)
     @Column(columnDefinition = "pipeline_run_status")
+    @JdbcType(PostgreSQLEnumJdbcType.class)
     private PipelineRunStatus status;
 
     private Instant startedAt;

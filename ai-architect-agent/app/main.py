@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from app.api.agent import router as agent_router
 from app.llm.client import LLMClient
@@ -88,3 +89,17 @@ app.include_router(agent_router)
 async def health():
     return JSONResponse({"status": "UP",
                          "service": "archon-agent"})
+
+
+@app.get("/metrics", include_in_schema=False)
+async def prometheus_metrics():
+    """Expose OTel metrics in Prometheus text format.
+
+    Prometheus scrapes this endpoint at its configured interval.
+    The PrometheusMetricReader registered in setup_metrics() populates
+    the prometheus_client default registry that generate_latest() reads.
+    """
+    return PlainTextResponse(
+        generate_latest().decode("utf-8"),
+        media_type=CONTENT_TYPE_LATEST,
+    )

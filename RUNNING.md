@@ -57,6 +57,9 @@ docker compose up --build
 | **API Gateway** | [http://localhost:8080](http://localhost:8080) | Spring Boot REST/SSE API |
 | **Agent** | [http://localhost:8001](http://localhost:8001) | FastAPI LLM pipeline |
 | **Qdrant Dashboard** | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) | Vector DB admin |
+| **Jaeger UI** | [http://localhost:16686](http://localhost:16686) | Distributed tracing |
+| **Prometheus** | [http://localhost:9090](http://localhost:9090) | Metrics scrape browser |
+| **Grafana** | [http://localhost:3001](http://localhost:3001) | Metrics dashboards (no login required) |
 
 Open [http://localhost:3000](http://localhost:3000) in your browser, enter a username to log in, then describe your system requirements to start an architecture analysis.
 

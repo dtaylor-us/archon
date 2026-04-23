@@ -16,6 +16,9 @@ vi.mock('../views/LoginView', () => ({
 }));
 
 /* Mock views */
+vi.mock('../views/HomeView', () => ({
+  HomeView: () => <div data-testid="home-view">Home Mock</div>,
+}));
 vi.mock('../views/ChatView', () => ({
   ChatView: () => <div data-testid="chat-view">Chat Mock</div>,
 }));
@@ -52,7 +55,7 @@ describe('App', () => {
     useStore.setState({ token: 'jwt', username: 'Alice' });
     render(<App />);
     expect(screen.getByTestId('app-shell')).toBeInTheDocument();
-    expect(screen.getByTestId('chat-view')).toBeInTheDocument();
+    expect(screen.getByTestId('home-view')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar')).toBeInTheDocument();
     expect(screen.queryByTestId('login-view')).not.toBeInTheDocument();
   });
