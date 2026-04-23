@@ -40,6 +40,27 @@ class RequirementChallengeEngineTool(BaseTool):
         context.hidden_assumptions = result.get("hidden_assumptions", [])
         context.clarifying_questions = result.get("clarifying_questions", [])
 
+        context.architecture_override = result.get(
+            "architecture_override",
+            {
+                "type": "none",
+                "styles": [],
+                "raw_instruction": "",
+                "detected_confidence": "low",
+            },
+        )
+        context.buy_vs_build_preferences = result.get(
+            "buy_vs_build_preferences",
+            {
+                "prefer_open_source": False,
+                "avoid_vendor_lockin": False,
+                "existing_tools": [],
+                "build_preference": "neutral",
+                "budget_constrained": False,
+                "raw_signals": [],
+            },
+        )
+
         logger.info(
             "ChallengeEngine found %d missing reqs, %d ambiguities, %d assumptions, %d questions",
             len(context.missing_requirements),

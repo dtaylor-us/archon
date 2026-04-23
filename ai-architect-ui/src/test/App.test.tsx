@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
 import { useStore } from '../store/useStore';
+import { getSessionMessages } from '../api/sessions';
 
 vi.mock('../api/sessions', () => ({
   listSessions: vi.fn().mockResolvedValue([]),
@@ -37,6 +38,9 @@ describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetStore();
+    window.localStorage.removeItem('archon.auth');
+    window.localStorage.removeItem('archon.lastConversationId');
+    window.localStorage.removeItem('archon.lastView');
   });
 
   it('showsLoginViewWhenNotAuthenticated', () => {
@@ -128,5 +132,29 @@ describe('App', () => {
     useStore.setState({ token: 'jwt', username: 'User', isStreaming: false, stages });
     render(<App />);
     expect(screen.queryByTestId('stage-progress')).not.toBeInTheDocument();
+  });
+
+  it('restoresLastConversationOnReloadWhenPersisted', async () => {
+    useStore.setState({ token: 'jwt', username: 'User', conversationId: null });
+    window.localStorage.setItem('archon.lastConversationId', 'conv-123');
+    (getSessionMessages as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { role: 'USER', content: 'hi' },
+    ]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(getSessionMessages).toHaveBeenCalledWith('conv-123', 'jwt');
+    });
+    await waitFor(() => {
+      expect(useStore.getState().conversationId).toBe('conv-123');
+    });
+  });
+
+  it('restoresLastViewFromLocalStorage', () => {
+    useStore.setState({ token: 'jwt', username: 'User', conversationId: 'c1' });
+    window.localStorage.setItem('archon.lastView', 'architecture');
+    render(<App />);
+    expect(screen.getByTestId('architecture-view')).toBeInTheDocument();
   });
 });

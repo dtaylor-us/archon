@@ -9,6 +9,7 @@ const STAGE_LABELS: Record<string, string> = {
   tactics_recommendation: 'Tactics Recommendation',
   conflict_analysis: 'Conflict Analysis',
   architecture_generation: 'Architecture Generation',
+  buy_vs_build_analysis: 'Evaluating build vs buy decisions',
   diagram_generation: 'Diagram Generation',
   trade_off_analysis: 'Trade-off Analysis',
   adl_generation: 'ADL Generation',

@@ -51,9 +51,6 @@ def format_response(ctx: ArchitectureContext) -> str:
     if ctx.trade_offs:
         sections.extend(_fmt_tradeoffs(ctx.trade_offs))
 
-    if ctx.adl_rules:
-        sections.extend(_fmt_adl(ctx.adl_rules))
-
     if ctx.weaknesses:
         sections.extend(_fmt_weaknesses(ctx.weaknesses))
 
@@ -566,7 +563,7 @@ def _fmt_tradeoffs(tradeoffs: list[dict]) -> list[str]:
 
 
 def _fmt_adl(rules: list[dict]) -> list[str]:
-    lines: list[str] = ["## Architecture Decision Log\n"]
+    lines: list[str] = ["## Architecture Definition Language (ADL)\n"]
 
     for rule in rules:
         if isinstance(rule, dict) and "adl_id" in rule:

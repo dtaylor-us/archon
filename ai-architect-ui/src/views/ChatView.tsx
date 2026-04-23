@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { useConversation } from '../hooks/useConversation';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
+import { useStore } from '../store/useStore';
 
 const EXAMPLES = [
   'Design a payment processing system with Stripe integration',
@@ -20,8 +21,11 @@ export function ChatView() {
     error,
     sendMessage,
     abort,
+    reconnect,
     resetConversation,
   } = useConversation();
+  const canReattach = useStore((s) => s.canReattach);
+  const lastStageCompleted = useStore((s) => s.lastStageCompleted);
 
   /* Auto-scroll on new content */
   useEffect(() => {
@@ -62,6 +66,29 @@ export function ChatView() {
     <div className="flex flex-col h-full" data-testid="chat-view">
       {/* ── Messages area ── */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        {canReattach && (
+          <div className="max-w-3xl mx-auto w-full px-4 pt-4" data-testid="reconnect-banner">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+              <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 2L1 14h14L8 2z" /><path d="M8 7v3M8 11.5v.5" />
+              </svg>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-amber-900">Your session was interrupted</p>
+                <p className="text-sm text-amber-800 mt-1">
+                  The pipeline may still be running.
+                  {lastStageCompleted ? ` Last completed stage: ${lastStageCompleted}.` : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-amber-700 transition-colors"
+                onClick={reconnect}
+              >
+                Reconnect
+              </button>
+            </div>
+          </div>
+        )}
         {!hasContent ? (
           /* Welcome / empty state */
           <div className="flex flex-col items-center justify-center h-full px-4" data-testid="chat-empty">

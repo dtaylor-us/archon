@@ -8,6 +8,7 @@ export const PIPELINE_STAGES = [
   'tactics_recommendation',
   'conflict_analysis',
   'architecture_generation',
+  'buy_vs_build_analysis',
   'diagram_generation',
   'trade_off_analysis',
   'adl_generation',
@@ -35,6 +36,7 @@ export type EventType =
   | 'TOOL_CALL'
   | 'COMPLETE'
   | 'RE_ITERATE'
+  | 'RUN_CREATED'
   | 'ERROR';
 
 export interface AgentEvent {
@@ -43,6 +45,22 @@ export interface AgentEvent {
   content?: string;
   conversationId?: string;
   payload?: Record<string, unknown>;
+}
+
+export interface PipelineRunStatusDto {
+  runId: string;
+  conversationId: string;
+  status: 'RUNNING' | 'COMPLETED' | 'FAILED' | 'COMPLETED_WITH_GAPS';
+  lastStageCompleted?: string | null;
+  startedAt: string;
+  completedAt?: string | null;
+  governanceScore?: number | null;
+  governanceConfidence?: string | null;
+  hasGaps?: boolean | null;
+  gapSummary?: string | null;
+  errorStage?: string | null;
+  errorMessage?: string | null;
+  eventCount: number;
 }
 
 /* ── Auth ─────────────────────────────────────────── */
@@ -74,6 +92,8 @@ export interface ArchitectureOutput {
   interactions: Interaction[];
   componentDiagram: string;
   sequenceDiagram: string;
+  overrideApplied?: boolean;
+  overrideWarning?: string;
 }
 
 /* ── Diagrams ─────────────────────────────────────── */
@@ -198,6 +218,40 @@ export interface TacticsSummary {
   topCriticalTactics: string[];
 }
 
+/* ── Buy vs Build ───────────────────────────────── */
+
+export interface BuyVsBuildDecision {
+  componentName: string;
+  recommendation: 'build' | 'buy' | 'adopt';
+  rationale: string;
+  alternativesConsidered: string[];
+  recommendedSolution: string;
+  estimatedBuildCost: string;
+  vendorLockInRisk: 'low' | 'medium' | 'high';
+  integrationEffort: 'low' | 'medium' | 'high';
+  conflictsWithUserPreference: boolean;
+  conflictExplanation: string;
+  isCoreeDifferentiator: boolean;
+}
+
+export interface BuyVsBuildSummary {
+  summaryText: string;
+  totalDecisions: number;
+  buildCount: number;
+  buyCount: number;
+  adoptCount: number;
+  conflictCount: number;
+  decisions: BuyVsBuildDecision[];
+}
+
+export interface ArchitectureOverride {
+  type: 'pinned' | 'candidate_set' | 'rejection' | 'none';
+  styles: string[];
+  rawInstruction: string;
+  overrideWarning: string;
+  overrideApplied: boolean;
+}
+
 /* ── Governance: Report ──────────────────────────── */
 
 export interface GovernanceScoreBreakdown {
@@ -220,7 +274,10 @@ export interface GovernanceReport {
   id: string;
   conversationId: string;
   iteration: number;
-  governanceScore: number;
+  governanceScore: number | null;
+  governanceScoreConfidence: 'high' | 'partial' | 'low' | 'unavailable';
+  reviewCompletedFully: boolean;
+  failedReviewNodes: string[];
   requirementCoverage: number;
   architecturalSoundness: number;
   riskMitigation: number;

@@ -14,6 +14,62 @@ among many — it only wins when it genuinely outscores all others.
 Domain:      {{ parsed_entities.get('domain', 'unknown') }}
 System type: {{ parsed_entities.get('system_type', 'unknown') }}
 
+━━━ USER ARCHITECTURE OVERRIDE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Override type:    {{ architecture_override.get('type', 'none') }}
+Override styles:  {{ architecture_override.get('styles', []) | join(', ') or 'none' }}
+Raw instruction:  {{ architecture_override.get('raw_instruction', '') or 'none' }}
+Confidence:       {{ architecture_override.get('detected_confidence', 'low') }}
+
+{% if architecture_override.get('type') == 'pinned' %}
+PINNED STYLE INSTRUCTION:
+The user has explicitly requested the following architecture style:
+  {{ architecture_override.get('styles', ['unknown'])[0] }}
+
+You MUST use this style as the selected_style unless it is
+fundamentally incompatible with the primary characteristics
+(see veto rules). If you use this style despite poor characteristic
+fit, you MUST include a warning in the selection_rationale
+explaining exactly why the style is suboptimal for this system
+and what risks the user is accepting.
+
+If the pinned style triggers a veto rule, do NOT silently ignore
+the veto. Instead:
+  1. Select the closest acceptable alternative
+  2. Set override_warning in style_selection to a specific
+     explanation of why the requested style was vetoed
+  3. Name the characteristic or constraint that caused the veto
+
+{% elif architecture_override.get('type') == 'candidate_set' %}
+CANDIDATE SET INSTRUCTION:
+The user has requested evaluation of these specific styles:
+  {{ architecture_override.get('styles', []) | join(', ') }}
+
+You MUST restrict your style selection to only these candidates.
+Score each one against the characteristics and select the
+highest-scoring non-vetoed style from this set.
+Explain why the winner was chosen over each other candidate.
+If ALL candidates in the set are vetoed, select the best
+available style outside the set and warn the user that none
+of their requested styles were viable.
+
+{% elif architecture_override.get('type') == 'rejection' %}
+REJECTION INSTRUCTION:
+The user has explicitly excluded the following style(s):
+  {{ architecture_override.get('styles', []) | join(', ') }}
+
+Remove these styles from consideration entirely regardless of
+their score. Note in the selection_rationale that this exclusion
+was user-directed.
+{% endif %}
+
+BUY-VS-BUILD PREFERENCES:
+{{ buy_vs_build_preferences | tojson(indent=2) }}
+Reference these preferences when describing component design
+and when reasoning about which components should be built vs
+adopted. Do not override a buy-vs-build analysis recommendation
+silently — if preferences conflict with best practice, note it.
+
 INFERRED ARCHITECTURE CHARACTERISTICS:
 {{ characteristics | tojson(indent=2) }}
 
@@ -83,6 +139,27 @@ Return a JSON object. No markdown, no preamble:
 
 {
   "style_selection": {
+    "override_applied": true | false,
+    "override_type": "pinned | candidate_set | rejection | none",
+    "override_warning": "string — populated when the override
+      conflicts with characteristic fit. Empty string if no warning.
+      Must be specific: name the characteristic, name the risk,
+      quantify the impact where possible.
+      Example: 'Modular Monolith was pinned by user. However,
+      elasticity is a primary characteristic with a target of 10x
+      peak load. Modular Monolith scores -2 on elasticity. The
+      system will not be able to scale individual components
+      independently under load spikes. Consider service-based or
+      event-driven if elasticity becomes critical.'",
+    "candidate_scores": [
+      {
+        "style": "string",
+        "score": number,
+        "vetoed": boolean,
+        "veto_reason": "string or null",
+        "included_in_override": boolean
+      }
+    ],
     "style_scores": [
       {
         "style": "string — style name",

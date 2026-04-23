@@ -6,7 +6,7 @@ communicates with the review agent through ArchitectureContext fields.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -62,6 +62,21 @@ class GovernanceScoreBreakdown(BaseModel):
 
 # ── Review agent state ───────────────────────────────────────────
 
+class SubReviewResult(BaseModel):
+    """Records the outcome of one review sub-stage.
+
+    Populated by each review node regardless of success or failure.
+    """
+
+    node_name: str
+    # One of: challenge_assumptions, stress_test_trade_offs,
+    #         audit_adl, score_governance
+    succeeded: bool
+    failure_reason: str = ""
+    # Non-empty only when succeeded is False
+    items_produced: int = 0
+    # Count of findings produced (challenges, issues, recommendations)
+
 
 class ReviewContext(BaseModel):
     """State for the ArchitectReviewAgent sub-graph.
@@ -95,7 +110,24 @@ class ReviewContext(BaseModel):
         default_factory=list
     )
     governance_score_breakdown: GovernanceScoreBreakdown | None = None
-    governance_score: int = 0
+    governance_score: int | None = None
     should_reiterate: bool = False
+
+    # Review health tracking — populated by review nodes
+    sub_review_results: list[SubReviewResult] = Field(default_factory=list)
+    review_completed_fully: bool = False
+    governance_score_confidence: Literal[
+        "high", "partial", "low", "unavailable"
+    ] = "unavailable"
+
+    @property
+    def failed_sub_reviews(self) -> list[str]:
+        """Returns names of sub-reviews that failed."""
+        return [r.node_name for r in self.sub_review_results if not r.succeeded]
+
+    @property
+    def succeeded_sub_reviews(self) -> list[str]:
+        """Returns names of sub-reviews that succeeded."""
+        return [r.node_name for r in self.sub_review_results if r.succeeded]
 
     model_config = {"extra": "allow"}

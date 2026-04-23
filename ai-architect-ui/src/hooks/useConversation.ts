@@ -13,7 +13,7 @@ export function useConversation() {
   const stages = useStore((s) => s.stages);
   const conversationId = useStore((s) => s.conversationId);
   const resetConversation = useStore((s) => s.resetConversation);
-  const { send, abort } = useSSEStream();
+  const { send, abort, reconnect } = useSSEStream();
 
   const sendMessage = useCallback(
     async (message: string) => {
@@ -31,6 +31,7 @@ export function useConversation() {
     conversationId,
     sendMessage,
     abort,
+    reconnect,
     resetConversation,
   };
 }

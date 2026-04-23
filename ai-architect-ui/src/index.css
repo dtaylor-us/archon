@@ -18,6 +18,28 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+@keyframes archon-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.archon-reveal {
+  animation: archon-reveal 500ms ease-out both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .archon-reveal {
+    animation: none;
+  }
+}
+
 .sidebar-scroll::-webkit-scrollbar {
   width: 6px;
 }

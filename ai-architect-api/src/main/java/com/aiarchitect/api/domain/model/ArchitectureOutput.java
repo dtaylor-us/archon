@@ -117,6 +117,15 @@ public class ArchitectureOutput {
     @Column(name = "diagrams_json", columnDefinition = "jsonb")
     private String diagramsJson;
 
+    /** True when a user architecture override constrained style selection */
+    @Column(name = "override_applied")
+    @Builder.Default
+    private boolean overrideApplied = false;
+
+    /** Warning text when an override conflicted with inferred characteristics */
+    @Column(name = "override_warning", columnDefinition = "TEXT")
+    private String overrideWarning;
+
     /** Timestamp when this output was created */
     @CreationTimestamp
     private Instant createdAt;

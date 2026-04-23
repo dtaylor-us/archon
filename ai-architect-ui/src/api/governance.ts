@@ -6,6 +6,8 @@ import type {
   GovernanceReport,
   TacticRecommendation,
   TacticsSummary,
+  BuyVsBuildSummary,
+  BuyVsBuildDecision,
 } from '../types/api';
 import { authFetchJson } from './http';
 
@@ -102,6 +104,30 @@ export async function getTacticsSummary(
 ): Promise<TacticsSummary> {
   return authFetchJson<TacticsSummary>(
     `${BASE}/${sessionId}/tactics/summary`,
+    token,
+  );
+}
+
+export async function getBuyVsBuildSummary(
+  sessionId: string,
+  token: string,
+  params?: { recommendation?: 'build' | 'buy' | 'adopt' },
+): Promise<BuyVsBuildSummary> {
+  const qs = new URLSearchParams();
+  if (params?.recommendation) qs.set('recommendation', params.recommendation);
+  const query = qs.toString() ? `?${qs.toString()}` : '';
+  return authFetchJson<BuyVsBuildSummary>(
+    `${BASE}/${sessionId}/build-analysis${query}`,
+    token,
+  );
+}
+
+export async function getBuyVsBuildConflicts(
+  sessionId: string,
+  token: string,
+): Promise<BuyVsBuildDecision[]> {
+  return authFetchJson<BuyVsBuildDecision[]>(
+    `${BASE}/${sessionId}/build-analysis/conflicts`,
     token,
   );
 }

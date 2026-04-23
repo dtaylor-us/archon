@@ -1,6 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 from typing import Any, Literal
+
 from pydantic import BaseModel, Field
 import uuid
 
@@ -180,6 +181,29 @@ class ArchitectureContext(BaseModel):
     missing_requirements: list[dict] = Field(default_factory=list)
     ambiguities: list[dict] = Field(default_factory=list)
     hidden_assumptions: list[dict] = Field(default_factory=list)
+
+    # Architecture override — populated by stage 2 if detected in user message.
+    # Empty / type=none means free selection.
+    architecture_override: dict = Field(default_factory=dict)
+    # Structure:
+    #   type: "pinned" | "candidate_set" | "rejection" | "none"
+    #   styles: list[str]  — style name(s) from the user
+    #   raw_instruction: str — verbatim text from user message
+    #   detected_confidence: "high" | "medium" | "low"
+
+    # Buy-vs-build preferences — populated by stage 2.
+    buy_vs_build_preferences: dict = Field(default_factory=dict)
+    # Structure:
+    #   prefer_open_source: bool
+    #   avoid_vendor_lockin: bool
+    #   existing_tools: list[str]
+    #   build_preference: "build" | "buy" | "adopt" | "neutral"
+    #   budget_constrained: bool
+    #   raw_signals: list[str]
+
+    # Buy-vs-build analysis — populated by stage 6b.
+    buy_vs_build_analysis: list[dict] = Field(default_factory=list)
+    buy_vs_build_summary: str = ""
     clarifying_questions: list[dict] = Field(default_factory=list)
     scenarios: list[dict] = Field(default_factory=list)
 
@@ -242,10 +266,16 @@ class ArchitectureContext(BaseModel):
     # Stage 12 — populated by ArchitectReviewAgent
     review_findings: dict[str, Any] = Field(default_factory=dict)
     governance_score: int | None = None
+    # Populated by architecture_review stage — indicates whether the score is fully
+    # grounded in all review sub-stages or partially degraded due to failures.
+    governance_score_confidence: str = "unavailable"
     governance_score_breakdown: dict[str, Any] = Field(default_factory=dict)
     improvement_recommendations: list[dict] = Field(default_factory=list)
     review_constraints: list[str] = Field(default_factory=list)
     should_reiterate: bool = False
+    # Populated by architecture_review stage
+    review_completed_fully: bool = False
+    failed_review_nodes: list[str] = Field(default_factory=list)
 
     # Cost tracking — populated by LLM client via cost_tracker
     token_usage: dict[str, Any] = Field(default_factory=dict)
@@ -277,3 +307,51 @@ class ArchitectureContext(BaseModel):
         return ""
 
     model_config = {"extra": "allow"}
+
+
+class BuyVsBuildDecision(BaseModel):
+    """
+    A buy-vs-build decision for one architecture component.
+
+    Evaluates whether a component in the proposed architecture should be built,
+    bought as a commercial product, or adopted as an open-source solution.
+
+    The recommendation must be grounded in actual market knowledge — real
+    products and projects, not hypothetical ones.
+    """
+
+    component_name: str
+    # Matches a component name from architecture_design.components
+
+    recommendation: Literal["build", "buy", "adopt"]
+    # The primary recommendation for this component
+
+    rationale: str
+    # Why this recommendation is appropriate for this system.
+    # Must reference the system's characteristics and constraints.
+    # Minimum 60 characters. Not a generic statement.
+
+    alternatives_considered: list[str]
+    # 2-4 real named products or projects evaluated.
+
+    recommended_solution: str
+    # If buy or adopt: the specific product or project recommended.
+    # If build: empty string.
+
+    estimated_build_cost: str
+    # If build: effort estimate. If buy/adopt: licensing or hosting cost.
+
+    vendor_lock_in_risk: Literal["low", "medium", "high"]
+    # low: open standard, easy to switch; high: deep coupling.
+
+    integration_effort: Literal["low", "medium", "high"]
+    # low: days; medium: weeks; high: months.
+
+    conflicts_with_user_preference: bool
+    # True if recommendation contradicts a user-stated preference.
+
+    conflict_explanation: str
+    # If conflicts_with_user_preference: explain the trade-off. Else empty.
+
+    is_core_differentiator: bool
+    # True if this component implements unique business logic.

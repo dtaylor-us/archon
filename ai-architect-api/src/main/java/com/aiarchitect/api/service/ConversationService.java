@@ -89,4 +89,18 @@ public class ConversationService {
                         .build())
                 .toList();
     }
+
+    /**
+     * Retrieves a conversation and validates user ownership.
+     *
+     * @param conversationId conversation identifier
+     * @param userId         authenticated user identifier
+     * @return the Conversation entity
+     */
+    @Transactional(readOnly = true)
+    public Conversation getConversation(UUID conversationId, String userId) {
+        return conversationRepo.findByIdAndUserId(conversationId, userId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Conversation not found"));
+    }
 }

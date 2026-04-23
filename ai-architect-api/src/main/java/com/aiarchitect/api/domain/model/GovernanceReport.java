@@ -30,8 +30,20 @@ public class GovernanceReport {
     @Builder.Default
     private int iteration = 0;
 
-    @Column(name = "governance_score", nullable = false)
-    private int governanceScore;
+    @Column(name = "governance_score")
+    private Integer governanceScore;
+
+    @Column(name = "review_completed_fully")
+    @Builder.Default
+    private boolean reviewCompletedFully = false;
+
+    @Column(name = "governance_score_confidence")
+    @Builder.Default
+    private String governanceScoreConfidence = "unavailable";
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "failed_review_nodes", columnDefinition = "jsonb")
+    private String failedReviewNodes;
 
     @Column(name = "requirement_coverage", nullable = false)
     @Builder.Default

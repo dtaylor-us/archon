@@ -93,6 +93,8 @@ class ArchitectureGeneratorTool(BaseTool):
             target_scenario=target_scenario,
             scenarios=context.scenarios,
             similar_past_designs=similar,
+            architecture_override=context.architecture_override,
+            buy_vs_build_preferences=context.buy_vs_build_preferences,
         )
 
         raw = await self.llm_client.complete(prompt, response_format="json")
@@ -124,6 +126,25 @@ class ArchitectureGeneratorTool(BaseTool):
             "style_scores", []
         )
         context.architecture_design = result
+
+        # Write override metadata to context for stage payload
+        context.architecture_design["override_applied"] = style_selection.get(
+            "override_applied", False
+        )
+        context.architecture_design["override_warning"] = style_selection.get(
+            "override_warning", ""
+        )
+
+        # Log warning if an override produced a poor-fit selection
+        override_warning = style_selection.get("override_warning", "")
+        if override_warning:
+            logger.warning(
+                "Architecture override produced a poor-fit selection. "
+                "warning=%s selected_style=%s conversation_id=%s",
+                override_warning[:200],
+                style_selection.get("selected_style"),
+                context.conversation_id,
+            )
 
         logger.info(
             "ArchitectureGenerator produced design with %d components, "

@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.Map;
 import java.util.UUID;
@@ -22,7 +23,10 @@ public class ChatService {
     private final ArchitectureOutputService architectureOutputService;
     private final GovernanceService governanceService;
     private final TacticsService tacticsService;
+    private final BuyVsBuildService buyVsBuildService;
     private final UsageService usageService;
+    private final PipelineRunService pipelineRunService;
+    private final PipelineRunBroadcaster pipelineRunBroadcaster;
     private final ObjectMapper objectMapper;
 
     public Flux<AgentResponse> streamChat(ChatRequest request, String userId) {
@@ -46,9 +50,48 @@ public class ChatService {
         AtomicReference<String> structuredOutput = new AtomicReference<>();
         AtomicReference<Map<String, Object>> structuredMap = new AtomicReference<>();
         AtomicReference<Map<String, Object>> completePayload = new AtomicReference<>();
+        AtomicReference<UUID> runIdRef = new AtomicReference<>();
 
-        return agentBridgeService.stream(agentRequest)
+        pipelineRunService.createRun(conversation, 0)
+                .ifPresent(runIdRef::set);
+
+        AgentResponse runCreated = new AgentResponse();
+        runCreated.setType(AgentResponse.EventType.RUN_CREATED);
+        runCreated.setPayload(Map.of("runId", runIdRef.get() != null ? runIdRef.get().toString() : null));
+        if (runIdRef.get() != null) {
+            try {
+                String json = objectMapper.writeValueAsString(runCreated);
+                pipelineRunService.appendEvent(runIdRef.get(), AgentResponse.EventType.RUN_CREATED.name(), null, json);
+            } catch (Exception e) {
+                log.warn("Failed to persist RUN_CREATED event. conversation={}", conversation.getId(), e);
+            }
+        }
+
+        Flux<AgentResponse> agentStream = agentBridgeService.stream(agentRequest)
                 .doOnNext(chunk -> {
+                    UUID runId = runIdRef.get();
+                    if (runId != null) {
+                        try {
+                            String json = objectMapper.writeValueAsString(chunk);
+                            pipelineRunService.appendEvent(
+                                    runId,
+                                    chunk.getType() != null ? chunk.getType().name() : "UNKNOWN",
+                                    chunk.getStage(),
+                                    json
+                            );
+                            pipelineRunBroadcaster.publish(runId, json);
+                            if (chunk.getType() == AgentResponse.EventType.STAGE_COMPLETE
+                                    && chunk.getStage() != null) {
+                                pipelineRunService.updateLastStage(runId, chunk.getStage());
+                            }
+                            if (chunk.getType() == AgentResponse.EventType.ERROR) {
+                                pipelineRunService.failRun(runId, chunk.getStage(), chunk.getContent());
+                                pipelineRunBroadcaster.complete(runId);
+                            }
+                        } catch (Exception e) {
+                            log.warn("Failed to persist pipeline event. conversation={}", conversation.getId(), e);
+                        }
+                    }
                     if (chunk.getType() == AgentResponse.EventType.CHUNK
                             && chunk.getContent() != null) {
                         buffer.get().append(chunk.getContent());
@@ -122,6 +165,20 @@ public class ChatService {
                                              conversation.getId(), e);
                                 }
                             }
+                            // Persist buy-vs-build decisions if present (stage 6b)
+                            if (so != null && so.containsKey("buy_vs_build_analysis")) {
+                                try {
+                                    @SuppressWarnings("unchecked")
+                                    var decisions = (java.util.List<Map<String, Object>>)
+                                            so.get("buy_vs_build_analysis");
+                                    if (decisions != null && !decisions.isEmpty()) {
+                                        buyVsBuildService.saveDecisions(conversation, decisions);
+                                    }
+                                } catch (Exception e) {
+                                    log.warn("Failed to persist buy-vs-build decisions for conversation={}",
+                                            conversation.getId(), e);
+                                }
+                            }
                             // Persist governance report if present
                             if (so != null && so.containsKey("governance_score")) {
                                 governanceService.saveGovernanceReport(
@@ -135,6 +192,28 @@ public class ChatService {
                                 persistTokenUsage(conversation.getId(), cp);
                             }
 
+                            UUID runId = runIdRef.get();
+                            if (runId != null && so != null) {
+                                try {
+                                    Integer govScore = (so.get("governance_score") instanceof Number n) ? n.intValue() : null;
+                                    String confidence = so.get("governance_score_confidence") != null
+                                            ? so.get("governance_score_confidence").toString()
+                                            : null;
+                                    pipelineRunService.completeRun(
+                                            runId,
+                                            govScore,
+                                            confidence,
+                                            false,
+                                            null,
+                                            null,
+                                            null
+                                    );
+                                    pipelineRunBroadcaster.complete(runId);
+                                } catch (Exception e) {
+                                    log.warn("Failed to complete pipeline run. runId={}", runId, e);
+                                }
+                            }
+
                             log.info("Stream complete conversation={}",
                                      conversation.getId());
                         } catch (Exception e) {
@@ -144,6 +223,8 @@ public class ChatService {
                         }
                     });
                 });
+
+        return Flux.concat(Mono.just(runCreated), agentStream);
     }
 
     /**

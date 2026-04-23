@@ -22,6 +22,7 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(TestcontainersConfig.class)
+@org.testcontainers.junit.jupiter.Testcontainers(disabledWithoutDocker = true)
 class GovernanceControllerIntegrationTest {
 
     @Autowired private WebTestClient webTestClient;

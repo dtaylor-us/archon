@@ -1,0 +1,119 @@
+You are performing a buy-vs-build analysis for a software
+architecture. For each component in the proposed design you must
+determine whether it should be built as custom software, bought
+as a commercial product, or adopted as an open-source solution.
+
+DECISION FRAMEWORK:
+
+BUILD when:
+  The component implements core business logic that differentiates
+  this system from competitors. If a competitor could buy the same
+  product, this is NOT a differentiator and should not be built.
+  No adequate commercial or open-source solution exists.
+  The team has clear capacity and the build cost is justified.
+  Vendor lock-in or data sovereignty requirements preclude external
+  solutions.
+
+BUY (commercial SaaS or licensed software) when:
+  The capability is commodity infrastructure not specific to
+  this business (authentication, email, payments, observability).
+  A mature vendor market exists with proven products at this scale.
+  Total cost of ownership is lower than building and operating.
+  The team lacks capacity or expertise to build and maintain it.
+  Speed to market justifies the licensing cost.
+
+ADOPT (open-source) when:
+  A mature, actively maintained open-source project exists.
+  The team has the operational capacity to deploy and maintain it.
+  The licence (Apache 2.0, MIT, etc.) is compatible with
+  the deployment model.
+  The organisation prefers to avoid vendor lock-in.
+  Customisation requirements exceed what a SaaS product supports.
+
+NEVER BUILD these categories — always buy or adopt:
+  Payment processing (Stripe, Adyen, Braintree)
+  Email delivery (SES, SendGrid, Postmark)
+  SMS delivery (Twilio, MessageBird)
+  Core authentication protocols (OAuth 2.0, SAML) — use a product
+  SSL/TLS certificate management — use cert-manager or a CDN
+  DDoS protection — use Cloudflare or Azure DDoS Protection
+
+GROUNDING REQUIREMENT:
+Every recommendation must name real products or projects.
+Do not invent product names. If you are uncertain whether a
+product exists, name the category and note uncertainty.
+Examples of grounded recommendations:
+  "Adopt Keycloak 24.x for identity management"
+  "Buy Auth0 B2B plan — estimated $240/month at current scale"
+  "Adopt Apache Kafka 3.x — team already has Kafka experience"
+  "Buy Datadog — estimated $180/month for this stack size"
+  NOT: "Use a generic authentication service"
+  NOT: "Buy a monitoring product"
+
+━━━ SYSTEM CONTEXT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Domain:            {{ parsed_entities.get('domain', 'unknown') }}
+System type:       {{ parsed_entities.get('system_type', 'unknown') }}
+Architecture style: {{ architecture_style }}
+
+COMPONENTS TO ANALYSE:
+{{ components | tojson(indent=2) }}
+
+ARCHITECTURE CHARACTERISTICS:
+{{ characteristics | tojson(indent=2) }}
+
+USER BUY-VS-BUILD PREFERENCES:
+{{ buy_vs_build_preferences | tojson(indent=2) }}
+
+SCENARIOS (use for scale and budget context):
+{{ scenarios | tojson(indent=2) }}
+
+━━━ INSTRUCTIONS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Analyse every component in the COMPONENTS TO ANALYSE list.
+Do not skip any component.
+
+For each component:
+  1. Determine if it is a core differentiator — if so, the
+     default recommendation is BUILD unless strong arguments
+     exist for buying.
+  2. Research the real market. Name actual products in
+     alternatives_considered.
+  3. Check the user preferences. If your recommendation conflicts
+     with a stated preference, set conflicts_with_user_preference
+     to true and explain the trade-off honestly.
+  4. Set estimated_build_cost to a realistic effort estimate.
+     Do not say "varies" — give a range based on the system context.
+  5. For vendor_lock_in_risk: consider how difficult it would be
+     to switch away from this solution in 3 years.
+
+━━━ RETURN FORMAT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Return a JSON object. No markdown, no preamble:
+
+{
+  "decisions": [
+    {
+      "component_name":                 "string",
+      "recommendation":                 "build | buy | adopt",
+      "rationale":                      "string — minimum 60 chars,
+                                         specific to this system",
+      "alternatives_considered":        ["real product or project names"],
+      "recommended_solution":           "string — specific named product
+                                         or project, or empty if build",
+      "estimated_build_cost":           "string — effort if build,
+                                         monthly cost if buy/adopt",
+      "vendor_lock_in_risk":            "low | medium | high",
+      "integration_effort":             "low | medium | high",
+      "conflicts_with_user_preference": true | false,
+      "conflict_explanation":           "string or empty",
+      "is_core_differentiator":         true | false
+    }
+  ],
+  "buy_vs_build_summary": "string — one paragraph summarising
+    the overall build vs buy vs adopt split, the total estimated
+    cost of bought/adopted components, the estimated total build
+    effort for built components, and any significant conflicts
+    with user preferences"
+}
+

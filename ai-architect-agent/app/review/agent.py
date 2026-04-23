@@ -16,10 +16,10 @@ from app.models import ArchitectureContext
 from app.review.context import ReviewContext
 from app.review.nodes import (
     ReviewState,
-    assumption_challenger,
-    trade_off_stress,
-    adl_audit,
-    governance_scorer,
+    challenge_assumptions_node,
+    stress_test_trade_offs_node,
+    audit_adl_node,
+    score_governance_node,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,16 +40,16 @@ class ArchitectReviewAgent:
     def _build_graph():
         builder = StateGraph(ReviewState)
 
-        builder.add_node("assumption_challenger", assumption_challenger)
-        builder.add_node("trade_off_stress", trade_off_stress)
-        builder.add_node("adl_audit", adl_audit)
-        builder.add_node("governance_scorer", governance_scorer)
+        builder.add_node("challenge_assumptions", challenge_assumptions_node)
+        builder.add_node("stress_test_trade_offs", stress_test_trade_offs_node)
+        builder.add_node("audit_adl", audit_adl_node)
+        builder.add_node("score_governance", score_governance_node)
 
-        builder.set_entry_point("assumption_challenger")
-        builder.add_edge("assumption_challenger", "trade_off_stress")
-        builder.add_edge("trade_off_stress", "adl_audit")
-        builder.add_edge("adl_audit", "governance_scorer")
-        builder.add_edge("governance_scorer", END)
+        builder.set_entry_point("challenge_assumptions")
+        builder.add_edge("challenge_assumptions", "stress_test_trade_offs")
+        builder.add_edge("stress_test_trade_offs", "audit_adl")
+        builder.add_edge("audit_adl", "score_governance")
+        builder.add_edge("score_governance", END)
 
         return builder.compile()
 
@@ -97,6 +97,36 @@ class ArchitectReviewAgent:
         result = await self._compiled.ainvoke(initial_state)
         final_rc: ReviewContext = result["review_context"]
 
+        # Compute review health summary
+        succeeded_count = len(final_rc.succeeded_sub_reviews)
+        total_nodes = 4
+        if succeeded_count == total_nodes:
+            confidence = "high"
+            completed_fully = True
+        elif succeeded_count >= 2:
+            confidence = "partial"
+            completed_fully = False
+        elif succeeded_count == 1 and "score_governance" in final_rc.succeeded_sub_reviews:
+            confidence = "low"
+            completed_fully = False
+        else:
+            confidence = "unavailable"
+            completed_fully = False
+
+        final_rc.review_completed_fully = completed_fully
+        final_rc.governance_score_confidence = confidence
+
+        if not completed_fully:
+            logger.warning(
+                "Architecture review completed with degradation. succeeded=%d/%d "
+                "failed_nodes=%s confidence=%s conversation_id=%s",
+                succeeded_count,
+                total_nodes,
+                final_rc.failed_sub_reviews,
+                confidence,
+                context.conversation_id,
+            )
+
         # Write review findings back to the main context
         context.review_findings = {
             "assumption_challenges": [
@@ -129,6 +159,9 @@ class ArchitectReviewAgent:
         context.should_reiterate = (
             final_rc.should_reiterate and not context.is_final_iteration
         )
+        context.governance_score_confidence = final_rc.governance_score_confidence
+        context.review_completed_fully = final_rc.review_completed_fully
+        context.failed_review_nodes = final_rc.failed_sub_reviews
 
         # Build review constraints for re-iteration
         if context.should_reiterate:

@@ -526,7 +526,7 @@ via SSE.
 | 6 | `architecture_generation` | Generate candidate architecture styles |
 | 7 | `diagram_generation` | Generate C4 architecture diagram |
 | 8 | `trade_off_analysis` | Analyse trade-offs between candidate styles |
-| 9 | `adl_generation` | Generate Architecture Decision Log |
+| 9 | `adl_generation` | Generate Architecture Definition Language (ADL) rules |
 | 10 | `weakness_analysis` | Identify architectural weaknesses |
 | 11 | `fmea_analysis` | Failure Mode and Effects Analysis |
 | 12 | `architecture_review` | Final review and scoring (with optional reiteration) |

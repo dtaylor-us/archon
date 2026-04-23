@@ -86,6 +86,17 @@ async def architecture_generation(state: PipelineState) -> dict:
     return {"context": ctx}
 
 
+async def buy_vs_build_analysis(state: PipelineState) -> dict:
+    """
+    Stage 6b — evaluates each architecture component for build vs buy vs adopt.
+
+    Runs after architecture_generation so it has the component list, and before
+    diagram_generation so diagrams can reflect the chosen solutions.
+    """
+    ctx = await _registry["buy_vs_build_analyzer"].execute(state["context"])
+    return {"context": ctx}
+
+
 async def diagram_generation(state: PipelineState) -> dict:
     ctx = await _registry["diagram_generator"].execute(state["context"])
     return {"context": ctx}
@@ -107,22 +118,21 @@ async def weakness_analysis(state: PipelineState) -> dict:
 
 
 async def weakness_and_fmea(state: PipelineState) -> dict:
-    """Run weakness analysis and FMEA+ in parallel via asyncio.gather."""
+    """Run weakness analysis followed by FMEA+.
+
+    Weakness must complete before FMEA because the FMEA prompt uses the
+    weakness inventory to build cascading failure scenarios. Running the two
+    tools in parallel caused FMEA to always receive an empty weakness list,
+    silently degrading output quality.
+
+    Sequential execution is the correct behavior here; the performance cost is
+    acceptable relative to the quality improvement.
+    """
     ctx = state["context"]
 
-    # Run both tools concurrently — each gets its own copy of context
-    weakness_task = _registry["weakness_analyzer"].execute(ctx)
-    fmea_task = _registry["fmea_analyzer"].execute(ctx)
-
-    weakness_ctx, fmea_ctx = await asyncio.gather(
-        weakness_task, fmea_task
-    )
-
-    # Merge results: weakness results from weakness_ctx, FMEA from fmea_ctx
-    ctx.weaknesses = weakness_ctx.weaknesses
-    ctx.weakness_summary = weakness_ctx.weakness_summary
-    ctx.fmea_risks = fmea_ctx.fmea_risks
-    ctx.fmea_critical_risks = fmea_ctx.fmea_critical_risks
+    # Weakness must run first so FMEA receives populated ctx.weaknesses.
+    ctx = await _registry["weakness_analyzer"].execute(ctx)
+    ctx = await _registry["fmea_analyzer"].execute(ctx)
 
     logger.info(
         "weakness_and_fmea: %d weaknesses, %d FMEA risks (%d critical)",

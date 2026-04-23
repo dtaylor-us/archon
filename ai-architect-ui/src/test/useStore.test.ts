@@ -18,6 +18,8 @@ describe('useStore', () => {
         payload: undefined,
       })),
     });
+    window.localStorage.removeItem('archon.auth');
+    window.localStorage.removeItem('archon.lastConversationId');
   });
 
   describe('auth', () => {
@@ -35,12 +37,30 @@ describe('useStore', () => {
       expect(state.token).toBeNull();
       expect(state.username).toBeNull();
     });
+
+    it('setAuth_persistsAuthToLocalStorage', () => {
+      useStore.getState().setAuth('jwt-token', 'alice');
+      const raw = window.localStorage.getItem('archon.auth');
+      expect(raw).toContain('jwt-token');
+      expect(raw).toContain('alice');
+    });
+
+    it('clearAuth_removesPersistedAuth', () => {
+      useStore.getState().setAuth('jwt-token', 'alice');
+      useStore.getState().clearAuth();
+      expect(window.localStorage.getItem('archon.auth')).toBeNull();
+    });
   });
 
   describe('conversation', () => {
     it('setConversationId_updatesConversationId', () => {
       useStore.getState().setConversationId('conv-123');
       expect(useStore.getState().conversationId).toBe('conv-123');
+    });
+
+    it('setConversationId_persistsLastConversationId', () => {
+      useStore.getState().setConversationId('conv-123');
+      expect(window.localStorage.getItem('archon.lastConversationId')).toBe('conv-123');
     });
 
     it('appendChunk_concatenatesText', () => {
@@ -63,6 +83,7 @@ describe('useStore', () => {
       expect(state.isStreaming).toBe(false);
       expect(state.error).toBeNull();
       expect(state.stages.every((s) => s.status === 'pending')).toBe(true);
+      expect(window.localStorage.getItem('archon.lastConversationId')).toBeNull();
     });
   });
 

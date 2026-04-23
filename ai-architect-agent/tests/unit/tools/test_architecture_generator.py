@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock
 
 from app.models import ArchitectureContext
 from app.memory.store import MemoryStore
+import app.tools.architecture_generator as architecture_generator_module
 from app.tools.architecture_generator import (
     ArchitectureGeneratorTool,
     EXPECTED_STYLE_COUNT,
@@ -97,6 +98,10 @@ def _build_valid_response(
         )
     result: dict = {
         "style_selection": {
+            "override_applied": False,
+            "override_type": "none",
+            "override_warning": "",
+            "candidate_scores": [],
             "style_scores": _build_style_scores(
                 selected_style, runner_up,
                 count=score_count,
@@ -318,6 +323,81 @@ class TestArchitectureGeneratorTool:
             result.architecture_design["style_selection"]["selected_style"]
             == "Event-driven"
         )
+
+    async def test_run_writes_override_applied_to_architecture_design(
+        self, tool, rich_context, mock_llm,
+    ):
+        """run() writes override_applied into architecture_design root for payload."""
+        response = json.loads(VALID_RESPONSE)
+        response["style_selection"]["override_applied"] = True
+        response["style_selection"]["override_type"] = "pinned"
+        response["style_selection"]["override_warning"] = ""
+        mock_llm.complete.return_value = json.dumps(response)
+
+        result = await tool.run(rich_context)
+
+        assert result.architecture_design["override_applied"] is True
+
+    async def test_run_writes_override_warning_to_architecture_design(
+        self, tool, rich_context, mock_llm,
+    ):
+        """run() writes override_warning into architecture_design root for payload."""
+        response = json.loads(VALID_RESPONSE)
+        response["style_selection"]["override_applied"] = True
+        response["style_selection"]["override_type"] = "pinned"
+        response["style_selection"]["override_warning"] = "Poor fit warning."
+        mock_llm.complete.return_value = json.dumps(response)
+
+        result = await tool.run(rich_context)
+
+        assert result.architecture_design["override_warning"] == "Poor fit warning."
+
+    async def test_run_logs_warning_when_override_warning_non_empty(
+        self, tool, rich_context, mock_llm, caplog,
+    ):
+        """run() logs WARNING when override_warning is non-empty."""
+        response = json.loads(VALID_RESPONSE)
+        response["style_selection"]["override_applied"] = True
+        response["style_selection"]["override_type"] = "pinned"
+        response["style_selection"]["override_warning"] = "Poor fit warning."
+        mock_llm.complete.return_value = json.dumps(response)
+
+        with caplog.at_level(logging.WARNING):
+            await tool.run(rich_context)
+
+        assert any(
+            "override produced a poor-fit selection" in r.message
+            for r in caplog.records
+        )
+
+    async def test_run_passes_architecture_override_to_prompt_loader(
+        self, tool, rich_context, mock_llm, monkeypatch,
+    ):
+        """run() passes architecture_override to the prompt loader call."""
+        mock_llm.complete.return_value = VALID_RESPONSE
+        rich_context.architecture_override = {
+            "type": "pinned",
+            "styles": ["event-driven"],
+            "raw_instruction": "Use event-driven",
+            "detected_confidence": "high",
+        }
+        rich_context.buy_vs_build_preferences = {"build_preference": "neutral"}
+
+        captured: dict = {}
+
+        def _fake_load_prompt(name: str, **kwargs):
+            captured["name"] = name
+            captured["kwargs"] = kwargs
+            return "prompt"
+
+        monkeypatch.setattr(architecture_generator_module, "load_prompt", _fake_load_prompt)
+
+        await tool.run(rich_context)
+
+        assert captured["name"] == "architecture_generator"
+        assert "architecture_override" in captured["kwargs"]
+        assert captured["kwargs"]["architecture_override"]["type"] == "pinned"
+        assert "buy_vs_build_preferences" in captured["kwargs"]
 
     async def test_writes_style_scores_to_context_field(
         self, tool, rich_context, mock_llm,

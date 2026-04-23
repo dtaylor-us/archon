@@ -24,6 +24,7 @@ def mock_registry():
         "characteristic_reasoner",
         "conflict_analyzer",
         "architecture_generator",
+        "buy_vs_build_analyzer",
         "diagram_generator",
         "trade_off_engine",
         "adl_generator",
@@ -70,9 +71,9 @@ def base_context():
 
 class TestPipelineOrdering:
 
-    def test_ordered_stages_has_13_entries(self):
-        """ORDERED_STAGES must have exactly 13 stages."""
-        assert len(ORDERED_STAGES) == 13
+    def test_ordered_stages_has_14_entries(self):
+        """ORDERED_STAGES must have exactly 14 stages."""
+        assert len(ORDERED_STAGES) == 14
 
     def test_weakness_and_fmea_are_separate_stages(self):
         """weakness_analysis and fmea_analysis run as separate stages;
@@ -99,8 +100,8 @@ class TestPipelineStreaming:
         stage_starts = [c for c in chunks if c["type"] == "STAGE_START"]
         stage_completes = [c for c in chunks if c["type"] == "STAGE_COMPLETE"]
 
-        assert len(stage_starts) == 13
-        assert len(stage_completes) == 13
+        assert len(stage_starts) == 14
+        assert len(stage_completes) == 14
 
     async def test_ends_with_complete_event(self, base_context):
         last_chunk = None
@@ -225,7 +226,7 @@ class TestReiterationGate:
     async def test_reiteration_runs_all_stages_twice(
         self, base_context, mock_review_agent, mock_registry,
     ):
-        """Re-iteration executes all 11 stages again (22 STAGE_COMPLETE total)."""
+        """Re-iteration executes all stages again."""
         call_count = 0
         async def one_reiteration(ctx):
             nonlocal call_count
@@ -243,7 +244,7 @@ class TestReiterationGate:
             chunks.append(json.loads(chunk))
 
         completes = [c for c in chunks if c["type"] == "STAGE_COMPLETE"]
-        assert len(completes) == 26  # 13 stages × 2 iterations
+        assert len(completes) == 28  # 14 stages × 2 iterations
 
     async def test_re_iterate_payload_includes_constraints(
         self, base_context, mock_review_agent,

@@ -102,10 +102,16 @@ For each characteristic, recommend 2 to 4 tactics.
 Choose the tactics that are most impactful for THIS system.
 Do not recommend every tactic in the catalog — be selective.
 
-For the concrete_application field: reference actual component
-names from the architecture design. Explain how the tactic
-applies to this system specifically, not generically. This field
-must be at least 30 characters long and name a specific component.
+For the concrete_application field:
+  - If architecture_design contains components: reference actual component
+    names from the architecture design.
+  - If architecture_design is empty (pre-design stage): still be specific to
+    this system by naming plausible components derived from the requirements
+    (e.g., "API Gateway", "Fraud Scoring Service", "Ingestion Pipeline",
+    "Event Bus", "Core Domain Service") and by referencing concrete flows and
+    measurable targets from the characteristics/scenarios.
+
+This field must be at least 30 characters long. Do not write generic statements.
 
 For the already_addressed field: check the architecture design
 carefully. If a component already implements the tactic

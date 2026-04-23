@@ -53,3 +53,44 @@ and ensure your challenges cover these areas:
 - {{ constraint }}
 {% endfor %}
 {% endif %}
+
+━━━ ARCHITECTURE OVERRIDE AND TOOL PREFERENCE DETECTION ━━━━━━
+
+In addition to your requirement analysis, detect any architecture
+style preferences or tool preferences in the user message.
+
+For architecture overrides, look for:
+  Explicit style names: layered, modular monolith, microkernel,
+    pipeline, service-based, event-driven, microservices, space-based
+  Comparison requests: "compare X vs Y", "evaluate X and Y"
+  Exclusion requests: "don't use X", "avoid X"
+  Preference statements: "we want X", "we prefer X", "use X"
+
+For buy-vs-build preferences, look for:
+  Existing tooling: "we already use X", "we have X", "we use X for Y"
+  Build preference: "build everything", "in-house", "custom"
+  Buy preference: "SaaS preferred", "managed service", "outsource"
+  Open source preference: "open source only", "no vendor lock-in",
+    "prefer OSS"
+  Budget signals: "limited budget", "cost-sensitive", "startup budget"
+  Operational capacity: "small team", "can't operate X", "no DevOps"
+
+Add these fields to your JSON output:
+
+"architecture_override": {
+  "type": "pinned | candidate_set | rejection | none",
+  "styles": ["list of style names mentioned"],
+  "raw_instruction": "verbatim text from user that triggered this",
+  "detected_confidence": "high | medium | low"
+},
+"buy_vs_build_preferences": {
+  "prefer_open_source": true | false,
+  "avoid_vendor_lockin": true | false,
+  "existing_tools": ["tools user says they already have"],
+  "build_preference": "build | buy | adopt | neutral",
+  "budget_constrained": true | false,
+  "raw_signals": ["verbatim phrases that triggered each detection"]
+}
+
+If no override or preference is detected set type to "none"
+and all booleans to false with empty lists.

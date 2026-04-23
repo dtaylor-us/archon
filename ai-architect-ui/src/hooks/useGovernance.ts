@@ -5,8 +5,15 @@ import type {
   AdlDocument,
   WeaknessReport,
   FmeaEntry,
+  GovernanceReport,
 } from '../types/api';
-import { getTradeOffs, getAdl, getWeaknesses, getFmea } from '../api/governance';
+import {
+  getTradeOffs,
+  getAdl,
+  getWeaknesses,
+  getFmea,
+  getGovernanceReport,
+} from '../api/governance';
 import { ApiError } from '../api/http';
 
 /**
@@ -21,6 +28,7 @@ export function useGovernance() {
   const [adl, setAdl] = useState<AdlDocument | null>(null);
   const [weaknesses, setWeaknesses] = useState<WeaknessReport | null>(null);
   const [fmea, setFmea] = useState<FmeaEntry[]>([]);
+  const [governanceReport, setGovernanceReport] = useState<GovernanceReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +46,7 @@ export function useGovernance() {
         getWeaknesses(conversationId, token),
         getFmea(conversationId, token),
       ]);
+      const gr = await getGovernanceReport(conversationId, token).catch((e) => e);
 
       if (to.status === 'fulfilled') setTradeOffs(to.value);
       else if (!isNotFound(to.reason)) throw to.reason;
@@ -50,6 +59,14 @@ export function useGovernance() {
 
       if (f.status === 'fulfilled') setFmea(f.value);
       else if (!isNotFound(f.reason)) throw f.reason;
+
+      if (gr instanceof ApiError && gr.status === 404) {
+        setGovernanceReport(null);
+      } else if (gr instanceof Error) {
+        throw gr;
+      } else {
+        setGovernanceReport(gr as GovernanceReport);
+      }
     } catch (err) {
       setError((err as Error).message ?? 'Failed to load governance data');
     } finally {
@@ -70,6 +87,7 @@ export function useGovernance() {
     adl,
     weaknesses,
     fmea,
+    governanceReport,
     loading,
     error,
     refresh: fetchAll,

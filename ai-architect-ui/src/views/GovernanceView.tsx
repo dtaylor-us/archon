@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useGovernance } from '../hooks/useGovernance';
 import { useTactics } from '../hooks/useTactics';
+import { useBuyVsBuild } from '../hooks/useBuyVsBuild';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { SeverityGrid } from '../components/SeverityGrid';
 import { CopyButton } from '../components/CopyButton';
 import { StructuredExportBar } from '../components/StructuredData';
-import type { Weakness, TacticRecommendation, TradeOffDecision, AdlDocument, FmeaEntry } from '../types/api';
+import type { Weakness, TacticRecommendation, TradeOffDecision, AdlDocument, FmeaEntry, BuyVsBuildDecision } from '../types/api';
 
 /* ── Badge helpers ────────────────────────────── */
 
@@ -108,16 +109,22 @@ type Tab = 'trade-offs' | 'adl' | 'weaknesses' | 'fmea' | 'tactics';
 /* ── Component ────────────────────────────────── */
 
 export function GovernanceView() {
-  const [activeTab, setActiveTab] = useState<Tab>('trade-offs');
-  const { tradeOffs, adl, weaknesses, fmea, loading, error } = useGovernance();
+  const [activeTab, setActiveTab] = useState<Tab | 'sourcing'>('trade-offs');
+  const [sourcingFilter, setSourcingFilter] = useState<'all' | 'build' | 'buy' | 'adopt'>('all');
+  const [sourcingConflictsOnly, setSourcingConflictsOnly] = useState(false);
+  const { tradeOffs, adl, weaknesses, fmea, governanceReport, loading, error } = useGovernance();
   const { tactics, summary: tacticsSummary, loading: tacticsLoading } = useTactics();
+  const { summary: sourcingSummary } = useBuyVsBuild({
+    recommendation: sourcingFilter === 'all' ? undefined : sourcingFilter,
+  });
 
-  const tabs: { key: Tab; label: string }[] = [
+  const tabs: { key: Tab | 'sourcing'; label: string }[] = [
     { key: 'trade-offs', label: 'Trade-offs' },
     { key: 'adl', label: 'ADL' },
     { key: 'weaknesses', label: 'Weaknesses' },
     { key: 'fmea', label: 'FMEA' },
     { key: 'tactics', label: 'Tactics' },
+    { key: 'sourcing', label: 'Sourcing' },
   ];
 
   /* Derive markdown and filename for the active tab */
@@ -141,6 +148,8 @@ export function GovernanceView() {
         return tactics.length > 0
           ? { md: tacticsMarkdown(tactics), filename: 'tactics.md' }
           : null;
+      case 'sourcing':
+        return null;
     }
   }
 
@@ -177,6 +186,7 @@ export function GovernanceView() {
     fmea,
     tactics,
     tacticsSummary,
+    sourcingSummary,
   };
 
   return (
@@ -204,6 +214,50 @@ export function GovernanceView() {
           ) : undefined
         }
       />
+
+      {/* ── Governance score + degradation warning ── */}
+      {governanceReport && (
+        <div className="pt-4 space-y-3" data-testid="governance-score-section">
+          {!governanceReport.reviewCompletedFully && (
+            <div
+              className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3"
+              data-testid="review-degradation-banner"
+            >
+              <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 2L1 14h14L8 2z" /><path d="M8 7v3M8 11.5v.5" />
+              </svg>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-amber-900">Review completed with degradation</p>
+                <p className="text-sm text-amber-800 mt-1">
+                  Some review checks failed: <span className="font-semibold">{(governanceReport.failedReviewNodes ?? []).join(', ') || 'unknown'}</span>.
+                  The governance score may be incomplete.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3" data-testid="governance-score-card">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-800">Governance score</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Confidence: <span className="font-semibold">{governanceReport.governanceScoreConfidence}</span>
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              {governanceReport.governanceScoreConfidence === 'unavailable' || governanceReport.governanceScore == null ? (
+                <p className="text-sm font-semibold text-gray-700">Score unavailable</p>
+              ) : (
+                <p className="text-2xl font-bold text-gray-900">
+                  {governanceReport.governanceScore}
+                  {(governanceReport.governanceScoreConfidence === 'partial' || governanceReport.governanceScoreConfidence === 'low') && (
+                    <span className="text-sm font-semibold text-gray-500"> (partial)</span>
+                  )}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Tab bar ── */}
       <div className="flex flex-wrap gap-1 border-b border-gray-200 mb-4 pt-3">
@@ -278,6 +332,126 @@ export function GovernanceView() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Sourcing ── */}
+      {activeTab === 'sourcing' && (
+        <div data-testid="panel-sourcing" className="space-y-4">
+          {!sourcingSummary ? (
+            <p className="text-gray-400 italic">No sourcing decisions available</p>
+          ) : (
+            <>
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <p className="text-sm font-semibold text-gray-800">Summary</p>
+                {sourcingSummary.summaryText ? (
+                  <p className="text-sm text-gray-600 mt-2">{sourcingSummary.summaryText}</p>
+                ) : (
+                  <p className="text-sm text-gray-400 mt-2 italic">No summary text available</p>
+                )}
+
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <span className="text-xs font-semibold rounded-full bg-gray-100 text-gray-700 px-3 py-1">Total {sourcingSummary.totalDecisions}</span>
+                  <span className="text-xs font-semibold rounded-full bg-blue-50 text-blue-700 px-3 py-1">Build {sourcingSummary.buildCount}</span>
+                  <span className="text-xs font-semibold rounded-full bg-purple-50 text-purple-700 px-3 py-1">Buy {sourcingSummary.buyCount}</span>
+                  <span className="text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 px-3 py-1">Adopt {sourcingSummary.adoptCount}</span>
+                </div>
+
+                {sourcingSummary.conflictCount > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3 text-amber-900">
+                    <p className="text-sm font-semibold">Preference conflicts: {sourcingSummary.conflictCount}</p>
+                    <p className="text-sm mt-1">
+                      Some recommendations conflict with your stated preferences. Review conflicts below.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="text-sm text-gray-600">
+                  Filter:
+                  <select
+                    className="ml-2 border border-gray-200 rounded-lg px-2 py-1 text-sm"
+                    value={sourcingFilter}
+                    onChange={(e) => setSourcingFilter(e.target.value as any)}
+                  >
+                    <option value="all">All</option>
+                    <option value="build">Build only</option>
+                    <option value="buy">Buy only</option>
+                    <option value="adopt">Adopt only</option>
+                  </select>
+                </label>
+
+                <label className="text-sm text-gray-600 inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300"
+                    checked={sourcingConflictsOnly}
+                    onChange={(e) => setSourcingConflictsOnly(e.target.checked)}
+                  />
+                  Show conflicts only
+                </label>
+              </div>
+
+              <div className="space-y-3">
+                {sourcingSummary.decisions
+                  .filter((d: BuyVsBuildDecision) => !sourcingConflictsOnly || d.conflictsWithUserPreference)
+                  .map((d: BuyVsBuildDecision) => (
+                    <div key={d.componentName} className="border border-gray-200 rounded-xl p-4 bg-white">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-sm text-gray-900">{d.componentName}</p>
+                            {d.isCoreeDifferentiator && (
+                              <span className="text-[11px] font-semibold rounded-full bg-blue-50 text-blue-700 px-2 py-0.5">
+                                Core differentiator
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Alternatives evaluated: {(d.alternativesConsidered ?? []).join(', ')}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`text-[11px] font-semibold rounded px-2 py-0.5 ${
+                            d.recommendation === 'build' ? 'bg-blue-50 text-blue-700' :
+                            d.recommendation === 'buy' ? 'bg-purple-50 text-purple-700' :
+                            'bg-emerald-50 text-emerald-700'
+                          }`}>
+                            {d.recommendation.toUpperCase()}
+                          </span>
+                          <span className="text-[11px] rounded px-2 py-0.5 bg-gray-100 text-gray-700">
+                            Integration: {d.integrationEffort}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 text-sm text-gray-700 space-y-2">
+                        <p>
+                          <span className="font-semibold">Solution:</span>{' '}
+                          {d.recommendedSolution ? d.recommendedSolution : 'Custom build'}
+                        </p>
+                        <p>{d.rationale}</p>
+                        <p><span className="font-semibold">Estimated cost:</span> {d.estimatedBuildCost}</p>
+                        <p><span className="font-semibold">Lock-in risk:</span> {d.vendorLockInRisk}</p>
+                      </div>
+
+                      {d.conflictsWithUserPreference && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3 text-amber-900">
+                          <p className="text-xs font-semibold flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M8 2L1 14h14L8 2z" /><path d="M8 7v3M8 11.5v.5" />
+                            </svg>
+                            Preference conflict
+                          </p>
+                          <p className="text-sm mt-1">{d.conflictExplanation}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </>
           )}
         </div>
       )}

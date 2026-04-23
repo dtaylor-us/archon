@@ -123,7 +123,7 @@ class TestFormatResponse:
         result = format_response(ctx)
         assert "## Quality Characteristics" in result
         assert "## Characteristic Conflicts" in result
-        assert "## Architecture Decision Log" in result
+        assert "## Architecture Definition Language (ADL)" not in result
         assert "## Weakness Analysis" in result
         assert "## FMEA Risk Analysis" in result
         assert "## Architecture Review" in result

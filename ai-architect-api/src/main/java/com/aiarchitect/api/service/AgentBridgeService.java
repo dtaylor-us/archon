@@ -31,6 +31,7 @@ public class AgentBridgeService {
         return agentHttpClient.stream(request)
                 // Parse each line into an AgentResponse
                 .map(this::parseLine)
+                .filter(r -> r != null)
                 // Convert non-AgentCommunicationException errors to AgentCommunicationException
                 .onErrorMap(
                     e -> !(e instanceof AgentCommunicationException),
@@ -46,6 +47,10 @@ public class AgentBridgeService {
      * @return parsed AgentResponse or error response on failure
      */
     private AgentResponse parseLine(String line) {
+        if (line != null && line.startsWith(":")) {
+            // Keepalive comment line from the agent. Not JSON, intentionally ignored.
+            return null;
+        }
         try {
             return objectMapper.readValue(line, AgentResponse.class);
         } catch (JsonProcessingException e) {

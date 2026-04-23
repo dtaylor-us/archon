@@ -56,14 +56,12 @@ public class GovernanceService {
     public void saveGovernanceReport(UUID conversationId, Map<String, Object> structuredOutput) {
         Map<String, Object> breakdown = getMap(structuredOutput, "governance_score_breakdown");
         Integer score = getIntOrNull(structuredOutput, "governance_score");
-
-        if (score == null) {
-            log.warn("No governance_score in structured output for conversation={}", conversationId);
-            return;
-        }
+        String confidence = getString(structuredOutput, "governance_score_confidence");
+        boolean completedFully = Boolean.TRUE.equals(structuredOutput.get("review_completed_fully"));
 
         String reviewFindingsJson = null;
         String improvementRecsJson = null;
+        String failedNodesJson = null;
         try {
             Object findings = structuredOutput.get("review_findings");
             if (findings != null) {
@@ -73,6 +71,10 @@ public class GovernanceService {
             if (recs != null) {
                 improvementRecsJson = objectMapper.writeValueAsString(recs);
             }
+            Object failedNodes = structuredOutput.get("failed_review_nodes");
+            if (failedNodes != null) {
+                failedNodesJson = objectMapper.writeValueAsString(failedNodes);
+            }
         } catch (JsonProcessingException e) {
             log.warn("Failed to serialize review data for conversation={}", conversationId, e);
         }
@@ -81,6 +83,9 @@ public class GovernanceService {
                 .conversationId(conversationId)
                 .iteration(getInt(structuredOutput, "iteration"))
                 .governanceScore(score)
+                .governanceScoreConfidence(confidence != null ? confidence : "unavailable")
+                .reviewCompletedFully(completedFully)
+                .failedReviewNodes(failedNodesJson)
                 .requirementCoverage(getInt(breakdown, "requirement_coverage"))
                 .architecturalSoundness(getInt(breakdown, "architectural_soundness"))
                 .riskMitigation(getInt(breakdown, "risk_mitigation"))
@@ -92,7 +97,12 @@ public class GovernanceService {
                 .build();
 
         governanceReportRepository.save(report);
-        log.info("Saved governance report for conversation={} score={}", conversationId, score);
+        log.info(
+                "Saved governance report for conversation={} score={} confidence={}",
+                conversationId,
+                score,
+                report.getGovernanceScoreConfidence()
+        );
     }
 
     public List<FmeaRiskDto> getFmeaRisks(UUID conversationId) {
@@ -131,6 +141,7 @@ public class GovernanceService {
     private GovernanceReportDto toGovernanceDto(GovernanceReport r) {
         Object findings = null;
         List<Object> recs = null;
+        List<String> failedNodes = List.of();
         try {
             if (r.getReviewFindings() != null) {
                 findings = objectMapper.readValue(r.getReviewFindings(), Object.class);
@@ -138,6 +149,11 @@ public class GovernanceService {
             if (r.getImprovementRecommendations() != null) {
                 recs = objectMapper.readValue(
                         r.getImprovementRecommendations(),
+                        new TypeReference<>() {});
+            }
+            if (r.getFailedReviewNodes() != null) {
+                failedNodes = objectMapper.readValue(
+                        r.getFailedReviewNodes(),
                         new TypeReference<>() {});
             }
         } catch (JsonProcessingException e) {
@@ -149,6 +165,9 @@ public class GovernanceService {
                 .conversationId(r.getConversationId())
                 .iteration(r.getIteration())
                 .governanceScore(r.getGovernanceScore())
+                .governanceScoreConfidence(r.getGovernanceScoreConfidence())
+                .reviewCompletedFully(r.isReviewCompletedFully())
+                .failedReviewNodes(failedNodes)
                 .requirementCoverage(r.getRequirementCoverage())
                 .architecturalSoundness(r.getArchitecturalSoundness())
                 .riskMitigation(r.getRiskMitigation())

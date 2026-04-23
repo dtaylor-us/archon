@@ -113,13 +113,22 @@ class GovernanceServiceTest {
     }
 
     @Test
-    void saveGovernanceReport_skipsWhenNoScore() {
+    void saveGovernanceReport_persistsReportWithNullScoreWhenUnavailable() {
         UUID convId = UUID.randomUUID();
-        Map<String, Object> output = Map.of("iteration", 0);
+        Map<String, Object> output = new HashMap<>();
+        output.put("iteration", 0);
+        output.put("governance_score_confidence", "unavailable");
+        output.put("review_completed_fully", false);
+        output.put("failed_review_nodes", List.of("score_governance"));
 
         governanceService.saveGovernanceReport(convId, output);
 
-        verify(governanceReportRepository, never()).save(any());
+        ArgumentCaptor<GovernanceReport> captor =
+                ArgumentCaptor.forClass(GovernanceReport.class);
+        verify(governanceReportRepository).save(captor.capture());
+
+        assertNull(captor.getValue().getGovernanceScore());
+        assertEquals("unavailable", captor.getValue().getGovernanceScoreConfidence());
     }
 
     @Test

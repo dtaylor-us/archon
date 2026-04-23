@@ -58,6 +58,20 @@ VALID_RESPONSE = json.dumps({
             "blocks_decision": "logging architecture",
         },
     ],
+    "architecture_override": {
+        "type": "pinned",
+        "styles": ["event-driven"],
+        "raw_instruction": "Use event-driven architecture.",
+        "detected_confidence": "high",
+    },
+    "buy_vs_build_preferences": {
+        "prefer_open_source": True,
+        "avoid_vendor_lockin": True,
+        "existing_tools": ["Datadog"],
+        "build_preference": "adopt",
+        "budget_constrained": True,
+        "raw_signals": ["prefer OSS", "no vendor lock-in", "we already use Datadog"],
+    },
 })
 
 
@@ -129,3 +143,55 @@ class TestRequirementChallengeEngineTool:
         assert len(result.ambiguities) == 1
         assert result.ambiguities[0]["term"] == "real-time"
         assert len(result.hidden_assumptions) == 1
+
+    async def test_run_extracts_architecture_override_from_llm_response(
+        self, tool: RequirementChallengeEngineTool, context_with_entities: ArchitectureContext,
+        mock_llm: AsyncMock,
+    ):
+        """run() extracts architecture_override from LLM response."""
+        mock_llm.complete.return_value = VALID_RESPONSE
+
+        result = await tool.run(context_with_entities)
+
+        assert result.architecture_override["type"] == "pinned"
+        assert "event-driven" in result.architecture_override["styles"]
+
+    async def test_run_extracts_buy_vs_build_preferences_from_llm_response(
+        self, tool: RequirementChallengeEngineTool, context_with_entities: ArchitectureContext,
+        mock_llm: AsyncMock,
+    ):
+        """run() extracts buy_vs_build_preferences from LLM response."""
+        mock_llm.complete.return_value = VALID_RESPONSE
+
+        result = await tool.run(context_with_entities)
+
+        assert result.buy_vs_build_preferences["prefer_open_source"] is True
+        assert result.buy_vs_build_preferences["budget_constrained"] is True
+
+    async def test_run_sets_default_architecture_override_when_not_in_response(
+        self, tool: RequirementChallengeEngineTool, context_with_entities: ArchitectureContext,
+        mock_llm: AsyncMock,
+    ):
+        """run() sets default architecture_override when absent."""
+        response = json.loads(VALID_RESPONSE)
+        del response["architecture_override"]
+        mock_llm.complete.return_value = json.dumps(response)
+
+        result = await tool.run(context_with_entities)
+
+        assert result.architecture_override["type"] == "none"
+        assert result.architecture_override["styles"] == []
+
+    async def test_run_sets_default_buy_vs_build_preferences_when_not_in_response(
+        self, tool: RequirementChallengeEngineTool, context_with_entities: ArchitectureContext,
+        mock_llm: AsyncMock,
+    ):
+        """run() sets default buy_vs_build_preferences when absent."""
+        response = json.loads(VALID_RESPONSE)
+        del response["buy_vs_build_preferences"]
+        mock_llm.complete.return_value = json.dumps(response)
+
+        result = await tool.run(context_with_entities)
+
+        assert result.buy_vs_build_preferences["build_preference"] == "neutral"
+        assert result.buy_vs_build_preferences["existing_tools"] == []

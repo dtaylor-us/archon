@@ -41,5 +41,7 @@ public class ArchitectureOutputDto {
     private String weaknessSummary;
     private List<Object> fmeaRisks;
     private List<Object> diagrams;
+    private boolean overrideApplied;
+    private String overrideWarning;
     private Instant createdAt;
 }

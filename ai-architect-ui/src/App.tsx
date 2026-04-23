@@ -4,13 +4,57 @@ import { ChatView } from './views/ChatView';
 import { LoginView } from './views/LoginView';
 import { ArchitectureView } from './views/ArchitectureView';
 import { GovernanceView } from './views/GovernanceView';
+import { HomeView } from './views/HomeView';
 import { StageProgress } from './components/StageProgress';
 import { getSessionMessages, listSessions } from './api/sessions';
 import type { SessionSummary } from './types/api';
 
-type View = 'chat' | 'architecture' | 'governance';
+type View = 'home' | 'chat' | 'architecture' | 'governance';
+
+const STORAGE_KEYS = {
+  lastView: 'archon.lastView',
+  lastConversationId: 'archon.lastConversationId',
+} as const;
+
+function safeGetItem(key: string): string | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(key: string, value: string) {
+  try {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(key, value);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function safeRemoveItem(key: string) {
+  try {
+    if (typeof window === 'undefined') return;
+    window.localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
+function readLastView(): View | null {
+  const raw = safeGetItem(STORAGE_KEYS.lastView);
+  if (raw === 'home' || raw === 'chat' || raw === 'architecture' || raw === 'governance') return raw;
+  return null;
+}
 
 const NAV_ITEMS: { key: View; label: string; icon: string }[] = [
+  {
+    key: 'home',
+    label: 'Home',
+    icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z',
+  },
   {
     key: 'chat',
     label: 'Chat',
@@ -38,7 +82,7 @@ export default function App() {
   const resetConversation = useStore((s) => s.resetConversation);
   const clearStages = useStore((s) => s.clearStages);
   const loadConversation = useStore((s) => s.loadConversation);
-  const [activeView, setActiveView] = useState<View>('chat');
+  const [activeView, setActiveViewState] = useState<View>(() => readLastView() ?? 'home');
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -52,6 +96,11 @@ export default function App() {
 
   /* Auto-dismiss the pipeline panel 3 s after abort or all stages done */
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const setActiveView = (v: View) => {
+    setActiveViewState(v);
+    safeSetItem(STORAGE_KEYS.lastView, v);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +124,45 @@ export default function App() {
       cancelled = true;
     };
   }, [token, conversationId, isStreaming]);
+
+  // Restore last opened conversation on page reload (auth is rehydrated in the store)
+  useEffect(() => {
+    let cancelled = false;
+    if (!token) return;
+    if (isStreaming) return;
+    if (conversationId) return;
+
+    const lastId = safeGetItem(STORAGE_KEYS.lastConversationId);
+    if (!lastId) return;
+
+    setLoadingSessionId(lastId);
+    getSessionMessages(lastId, token)
+      .then((msgs) => {
+        if (cancelled) return;
+        loadConversation(lastId, [...msgs].reverse());
+        setActiveView('chat');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        safeRemoveItem(STORAGE_KEYS.lastConversationId);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingSessionId(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, isStreaming, conversationId, loadConversation]);
+
+  // Without an active conversation, don't allow "empty" architecture/governance views
+  useEffect(() => {
+    if (!token) return;
+    if (!hasConversation && (activeView === 'architecture' || activeView === 'governance')) {
+      setActiveView('home');
+    }
+  }, [token, hasConversation, activeView]);
 
   useEffect(() => {
     if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
@@ -107,7 +195,9 @@ export default function App() {
   }
 
   const activeViewLabel =
-    activeView === 'chat'
+    activeView === 'home'
+      ? 'Home'
+      : activeView === 'chat'
       ? 'Chat'
       : activeView === 'architecture'
         ? 'Architecture'
@@ -135,20 +225,23 @@ export default function App() {
         </div>
 
         <nav className="flex flex-col gap-0.5 px-2 mt-1">
-          <button
-            onClick={() => setActiveView('chat')}
-            className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors ${
-              activeView === 'chat'
-                ? 'bg-sidebar-hover text-white'
-                : 'text-gray-400 hover:bg-sidebar-hover hover:text-gray-200'
-            }`}
-            data-testid="nav-chat"
-          >
-            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-            </svg>
-            Chat
-          </button>
+          {NAV_ITEMS.filter(({ key }) => key === 'home' || key === 'chat').map(({ key, label, icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveView(key)}
+              className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors ${
+                activeView === key
+                  ? 'bg-sidebar-hover text-white'
+                  : 'text-gray-400 hover:bg-sidebar-hover hover:text-gray-200'
+              }`}
+              data-testid={`nav-${key}`}
+            >
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d={icon} />
+              </svg>
+              {label}
+            </button>
+          ))}
         </nav>
 
         {hasConversation && (
@@ -160,7 +253,7 @@ export default function App() {
               </span>
             </div>
             <nav className="flex flex-col gap-0.5 px-1 pb-1.5">
-              {NAV_ITEMS.filter(({ key }) => key !== 'chat').map(({ key, label, icon }) => (
+              {NAV_ITEMS.filter(({ key }) => key !== 'home' && key !== 'chat').map(({ key, label, icon }) => (
                 <button
                   key={key}
                   onClick={() => setActiveView(key)}
@@ -238,6 +331,8 @@ export default function App() {
             onClick={() => {
               clearAuth();
               resetConversation();
+              safeRemoveItem(STORAGE_KEYS.lastView);
+              safeRemoveItem(STORAGE_KEYS.lastConversationId);
             }}
             className="flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-[13px] text-gray-400 hover:bg-sidebar-hover hover:text-gray-200 transition-colors"
             data-testid="nav-logout"
@@ -351,6 +446,8 @@ export default function App() {
                   clearAuth();
                   resetConversation();
                   setMobileDrawerOpen(false);
+                  safeRemoveItem(STORAGE_KEYS.lastView);
+                  safeRemoveItem(STORAGE_KEYS.lastConversationId);
                 }}
                 className="flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-[13px] text-gray-400 hover:bg-sidebar-hover hover:text-gray-200 transition-colors"
               >
@@ -403,6 +500,14 @@ export default function App() {
 
         {/* Content (leave space for fixed mobile bottom nav) */}
         <div className="flex-1 min-h-0 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+          {activeView === 'home' && (
+            <HomeView
+              onStartSession={() => {
+                resetConversation();
+                setActiveView('chat');
+              }}
+            />
+          )}
           {activeView === 'chat' && <ChatView />}
           {activeView === 'architecture' && (
             <div className="h-full overflow-y-auto">
@@ -418,10 +523,10 @@ export default function App() {
 
         {/* Mobile bottom nav */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-gray-100 bg-white/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-          <div className="grid grid-cols-3 h-14">
+          <div className="grid grid-cols-4 h-14">
             {NAV_ITEMS.map(({ key, label, icon }) => {
               const active = activeView === key;
-              const disabled = (key !== 'chat') && !hasConversation;
+              const disabled = (key === 'architecture' || key === 'governance') && !hasConversation;
               return (
                 <button
                   key={key}

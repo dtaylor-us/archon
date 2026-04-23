@@ -334,5 +334,5 @@ class TestGovernanceScorer:
         result = await governance_scorer(state)
         rc = result["review_context"]
 
-        # Should not crash, governance_score stays 0
-        assert rc.governance_score == 0
+        # Should not crash; scoring failure makes score unavailable.
+        assert rc.governance_score is None

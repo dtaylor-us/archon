@@ -28,3 +28,4 @@ CREATE INDEX idx_architecture_tactics_characteristic_name
 
 CREATE INDEX idx_architecture_tactics_priority
     ON architecture_tactics(conversation_id, priority);
+

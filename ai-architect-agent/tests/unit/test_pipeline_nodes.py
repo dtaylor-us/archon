@@ -12,6 +12,7 @@ from app.pipeline.nodes import (
     tactics_recommendation,
     conflict_analysis,
     architecture_generation,
+    buy_vs_build_analysis,
     diagram_generation,
     trade_off_analysis,
     adl_generation,
@@ -51,6 +52,7 @@ def _setup_registry(mock_llm: AsyncMock):
     mock_char_reasoner = _make_tool()
     mock_conflict = _make_tool()
     mock_arch_gen = _make_tool()
+    mock_bvb = _make_tool()
     mock_diagram = _make_tool()
     mock_trade_off = _make_tool()
     mock_adl = _make_tool()
@@ -66,6 +68,7 @@ def _setup_registry(mock_llm: AsyncMock):
         "tactics_advisor": mock_tactics_advisor,
         "conflict_analyzer": mock_conflict,
         "architecture_generator": mock_arch_gen,
+        "buy_vs_build_analyzer": mock_bvb,
         "diagram_generator": mock_diagram,
         "trade_off_engine": mock_trade_off,
         "adl_generator": mock_adl,
@@ -144,6 +147,42 @@ class TestLiveNodes:
         await architecture_generation(state)
 
         _setup_registry["architecture_generator"].execute.assert_awaited_once_with(base_context)
+
+    async def test_buy_vs_build_analysis_calls_analyzer(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
+    ):
+        """buy_vs_build_analysis() calls BuyVsBuildAnalyzerTool.run()."""
+        state: PipelineState = {"context": base_context}
+
+        await buy_vs_build_analysis(state)
+
+        _setup_registry["buy_vs_build_analyzer"].execute.assert_awaited_once_with(base_context)
+
+    async def test_buy_vs_build_analysis_returns_context_with_analysis(
+        self, base_context: ArchitectureContext, _setup_registry: dict,
+    ):
+        """buy_vs_build_analysis() returns context with buy_vs_build_analysis written."""
+        expected = [{"component_name": "Payments", "recommendation": "buy"}]
+
+        async def _run_with_analysis(ctx):
+            ctx.buy_vs_build_analysis = expected
+            ctx.buy_vs_build_summary = "Summary."
+            return ctx
+
+        _setup_registry["buy_vs_build_analyzer"].run = AsyncMock(
+            side_effect=_run_with_analysis
+        )
+
+        async def _exec(ctx):
+            return await _setup_registry["buy_vs_build_analyzer"].run(ctx)
+
+        _setup_registry["buy_vs_build_analyzer"].execute = AsyncMock(side_effect=_exec)
+
+        state: PipelineState = {"context": base_context}
+        result = await buy_vs_build_analysis(state)
+
+        assert result["context"].buy_vs_build_analysis == expected
+        assert result["context"].buy_vs_build_summary == "Summary."
 
     async def test_diagram_generation_calls_diagram_tool(
         self, base_context: ArchitectureContext, _setup_registry: dict,

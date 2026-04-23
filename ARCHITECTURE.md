@@ -43,6 +43,8 @@ DEFINE service ai-architect-api {
     GET /api/v1/sessions/{id}/governance,
     GET /api/v1/sessions/{id}/tactics,
     GET /api/v1/sessions/{id}/tactics/summary,
+    GET /api/v1/sessions/{id}/build-analysis,
+    GET /api/v1/sessions/{id}/build-analysis/conflicts,
     GET /api/v1/conversations/{id}/usage
   ]
   CALLS: [ai-architect-agent via AgentHttpClient]
@@ -68,6 +70,9 @@ ASSERT ai-architect-api {
   MUST stream agent responses as Server-Sent Events
     — ChatController.streamChat() MUST return Flux<AgentResponse>
     — endpoint MUST produce MediaType.TEXT_EVENT_STREAM_VALUE
+
+  PipelineRunService MUST create a run record before the agent stream begins
+    — see ASSERT durable_runs above
 
   MUST persist every user message BEFORE forwarding to agent
     — ConversationService.saveMessage() called with MessageRole.USER before
@@ -129,6 +134,9 @@ ASSERT ai-architect-agent {
   MUST stream responses as NDJSON
     — one JSON object per line, each line terminated with \n
     — media_type MUST be "application/x-ndjson"
+
+  weakness_analyzer MUST complete before fmea_analyzer
+    — see ASSERT weakness_before_fmea above
 
   MUST use ArchitectureContext as the single pipeline state object
     — no stage may pass data to another stage except through ArchitectureContext
@@ -192,6 +200,33 @@ ASSERT ai-architect-agent {
 
   MUST NOT include ``` fence characters in mermaid_source fields
     — source must be raw Mermaid syntax only
+}
+
+ASSERT architecture_override {
+  MUST apply pinned style overrides from architecture_override.type
+    — a pinned style must be used unless a veto rule applies
+
+  MUST populate override_warning when override conflicts with
+  primary characteristics — empty string is not acceptable
+  when a poor-fit override is applied
+
+  MUST restrict candidate_set selection to user-provided styles
+  only — never select outside the set without explicit warning
+}
+
+ASSERT buy_vs_build_analyzer {
+  MUST name real products in alternatives_considered
+    — invented product names are a hard failure
+
+  MUST set recommendation to "buy" or "adopt" for components
+  in the never-build categories (payments, email, SMS, auth
+  protocols, DDoS protection, certificate management)
+
+  MUST set conflicts_with_user_preference accurately when a
+  recommendation contradicts a user-stated preference
+
+  MUST provide rationale of at least 60 characters specific
+  to this system — generic rationale is rejected by validation
 }
 
 ASSERT tactics_advisor {
@@ -313,6 +348,74 @@ REQUIRE ai-architect-ui {
 
 ---
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RELIABILITY CONSTRAINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DEFINE run_lifecycle {
+  A pipeline run is a first-class durable entity.
+  The SSE stream is a VIEW over a run, not the run itself.
+  Stream loss, browser refresh, proxy timeout, or container
+  restart must not change the run's completion status.
+}
+
+ASSERT weakness_before_fmea {
+  weakness_analyzer MUST complete before fmea_analyzer begins.
+  asyncio.gather() MUST NOT be used for weakness_and_fmea_node.
+  FMEA prompt receives populated weaknesses context always.
+  REASON: FMEA cascading failure analysis depends on weakness
+  inventory. Parallel execution silently degrades FMEA quality.
+}
+
+ASSERT review_health_visible {
+  Every review sub-node MUST record success or failure in
+  sub_review_results regardless of outcome.
+  governance_score_confidence MUST be set accurately:
+    high        = all four sub-reviews succeeded
+    partial     = 1-3 sub-reviews succeeded
+    low         = only score_governance succeeded
+    unavailable = score_governance itself failed
+  A governance score of 75 with failed sub-reviews MUST be
+  distinguishable from a governance score of 75 with all
+  sub-reviews passing.
+  The UI MUST show a degradation warning when review_completed_fully
+  is false.
+}
+
+ASSERT sse_keepalive {
+  The pipeline MUST emit SSE comment lines (": heartbeat")
+  every 15 seconds during stage execution.
+  Comment lines MUST be emitted without waiting for a stage
+  to complete — they must interleave with stage execution.
+  REASON: Prevents proxy idle timeout disconnections during
+  long-running stages (architecture_generation, review).
+}
+
+ASSERT durable_runs {
+  pipeline_runs table MUST contain one record per pipeline
+  execution created before the agent stream begins.
+  pipeline_events table MUST contain an append-only log of
+  every SSE event emitted.
+  PipelineRunService MUST persist events before forwarding
+  them to the SseEmitter.
+  Run status MUST be updated to COMPLETED or FAILED when the
+  corresponding event arrives.
+  A run with status RUNNING after the stream closes represents
+  an interrupted run, not a completed one.
+  GET /api/v1/sessions/{id}/run/status MUST be available for
+  clients to check run state after reconnection.
+  GET /api/v1/sessions/{id}/run/stream MUST replay all
+  persisted events before continuing live.
+}
+
+ASSERT sseemitter_timeout {
+  SseEmitter timeout MUST be 600 seconds minimum.
+  AgentHttpClient WebClient timeout MUST match SseEmitter timeout.
+  REASON: Review re-iteration can run the full pipeline twice.
+  180 seconds is insufficient for re-iteration runs even with
+  keepalive comments preventing proxy timeouts.
+}
+
 ## PIPELINE DEFINITION
 
 DEFINE pipeline ArchonPipeline {
@@ -329,6 +432,7 @@ DEFINE pipeline ArchonPipeline {
     4b tactics_recommendation   — TacticsAdvisor tool (Bass/Clements/Kazman catalog)
     5  conflict_analysis         — CharacteristicConflictAnalyzer tool
     6  architecture_generation   — ArchitectureGenerator tool
+    6b buy_vs_build_analysis     — BuyVsBuildAnalyzerTool
     7  diagram_generation        — DiagramGenerator tool
     8  trade_off_analysis        — TradeOffEngine tool
     9  adl_generation            — ADLGeneratorV2 tool

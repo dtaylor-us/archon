@@ -13,7 +13,10 @@ public class GovernanceReportDto {
     private UUID id;
     private UUID conversationId;
     private int iteration;
-    private int governanceScore;
+    private Integer governanceScore;
+    private String governanceScoreConfidence;
+    private boolean reviewCompletedFully;
+    private List<String> failedReviewNodes;
     private int requirementCoverage;
     private int architecturalSoundness;
     private int riskMitigation;

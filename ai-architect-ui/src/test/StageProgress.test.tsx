@@ -12,10 +12,10 @@ function makeStages(overrides: Partial<Record<StageName, string>> = {}): StageSt
 }
 
 describe('StageProgress', () => {
-  it('renders_allTwelveStages', () => {
+  it('renders_allStages', () => {
     render(<StageProgress stages={makeStages()} />);
     const container = screen.getByTestId('stage-progress');
-    expect(container.children).toHaveLength(13);
+    expect(container.children).toHaveLength(14);
   });
 
   it('displaysPendingIcon_forPendingStages', () => {

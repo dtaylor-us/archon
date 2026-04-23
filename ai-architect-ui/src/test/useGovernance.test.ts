@@ -9,14 +9,22 @@ vi.mock('../api/governance', () => ({
   getAdl: vi.fn(),
   getWeaknesses: vi.fn(),
   getFmea: vi.fn(),
+  getGovernanceReport: vi.fn(),
 }));
 
-import { getTradeOffs, getAdl, getWeaknesses, getFmea } from '../api/governance';
+import {
+  getTradeOffs,
+  getAdl,
+  getWeaknesses,
+  getFmea,
+  getGovernanceReport,
+} from '../api/governance';
 
 const mockGetTradeOffs = vi.mocked(getTradeOffs);
 const mockGetAdl = vi.mocked(getAdl);
 const mockGetWeaknesses = vi.mocked(getWeaknesses);
 const mockGetFmea = vi.mocked(getFmea);
+const mockGetGovernanceReport = vi.mocked(getGovernanceReport);
 
 describe('useGovernance', () => {
   beforeEach(() => {
@@ -29,6 +37,24 @@ describe('useGovernance', () => {
     mockGetAdl.mockResolvedValue({ document: 'doc', rules: [] });
     mockGetWeaknesses.mockResolvedValue({ weaknesses: [], summary: 'ok' });
     mockGetFmea.mockResolvedValue([]);
+    mockGetGovernanceReport.mockResolvedValue({
+      id: 'g1',
+      conversationId: 'c1',
+      iteration: 0,
+      governanceScore: 80,
+      governanceScoreConfidence: 'high',
+      reviewCompletedFully: true,
+      failedReviewNodes: [],
+      requirementCoverage: 20,
+      architecturalSoundness: 20,
+      riskMitigation: 20,
+      governanceCompleteness: 20,
+      justification: 'ok',
+      shouldReiterate: false,
+      reviewFindings: {},
+      improvementRecommendations: [],
+      createdAt: new Date().toISOString(),
+    });
 
     const { result } = renderHook(() => useGovernance());
 
@@ -38,6 +64,7 @@ describe('useGovernance', () => {
 
     expect(mockGetTradeOffs).toHaveBeenCalledWith('c1', 'jwt');
     expect(result.current.adl?.document).toBe('doc');
+    expect(result.current.governanceReport?.governanceScore).toBe(80);
     expect(result.current.error).toBeNull();
   });
 
@@ -60,6 +87,7 @@ describe('useGovernance', () => {
     mockGetAdl.mockRejectedValue(new Error('API down'));
     mockGetWeaknesses.mockRejectedValue(new Error('API down'));
     mockGetFmea.mockRejectedValue(new Error('API down'));
+    mockGetGovernanceReport.mockRejectedValue(new Error('API down'));
 
     const { result } = renderHook(() => useGovernance());
 

@@ -1,6 +1,7 @@
 package com.aiarchitect.api.controller;
 
-import com.aiarchitect.api.dto.*;
+import com.aiarchitect.api.dto.ChatRequest;
+import com.aiarchitect.api.dto.AgentResponse;
 import com.aiarchitect.api.service.ChatService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
@@ -12,6 +13,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * REST controller for handling real-time chat streaming operations.
@@ -28,6 +33,12 @@ public class ChatController {
 
     private final ChatService chatService;
     private final ObjectMapper objectMapper;
+
+    private static final long SSE_TIMEOUT_MS = 600_000L;
+    // 600 seconds — accommodates re-iteration runs with keepalive.
+
+    private static final long HEARTBEAT_INTERVAL_SECONDS = 15L;
+    // Prevents proxy idle timeout during long-running stages.
 
     /**
      * Streams chat responses to the client in real-time using Server-Sent Events.
@@ -65,9 +76,32 @@ public class ChatController {
         log.info("Streaming chat for conversation: {}, mode: {}, user: {}",
                 request.getConversationId(), request.getMode(), userId);
 
-        SseEmitter emitter = new SseEmitter(180_000L);
+        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
 
-        chatService.streamChat(request, userId).subscribe(response -> {
+        ScheduledExecutorService heartbeatExecutor =
+                Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r, "sse-heartbeat");
+                    t.setDaemon(true);
+                    return t;
+                });
+        ScheduledFuture<?> heartbeatFuture = heartbeatExecutor.scheduleAtFixedRate(() -> {
+            try {
+                emitter.send(SseEmitter.event().comment(" heartbeat"));
+            } catch (IOException e) {
+                // If we can't write, the connection is likely closed already.
+                emitter.complete();
+            }
+        }, HEARTBEAT_INTERVAL_SECONDS, HEARTBEAT_INTERVAL_SECONDS, TimeUnit.SECONDS);
+
+        Runnable stopHeartbeat = () -> {
+            heartbeatFuture.cancel(true);
+            heartbeatExecutor.shutdownNow();
+        };
+        emitter.onCompletion(stopHeartbeat);
+        emitter.onTimeout(stopHeartbeat);
+        emitter.onError(e -> stopHeartbeat.run());
+
+        chatService.streamChat(request, userId).subscribe((AgentResponse response) -> {
             try {
                 emitter.send(SseEmitter.event()
                         .data(objectMapper.writeValueAsString(response),

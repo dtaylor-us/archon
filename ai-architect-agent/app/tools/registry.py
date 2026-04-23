@@ -4,6 +4,7 @@ from app.llm.client import LLMClient
 from app.memory.store import MemoryStore
 from app.tools.adl_generator import ADLGeneratorV2Tool
 from app.tools.architecture_generator import ArchitectureGeneratorTool
+from app.tools.buy_vs_build_analyzer import BuyVsBuildAnalyzerTool
 from app.tools.base import BaseTool
 from app.tools.challenge_engine import RequirementChallengeEngineTool
 from app.tools.characteristic_reasoner import CharacteristicReasoningEngineTool
@@ -38,6 +39,7 @@ def build_registry(
         "tactics_advisor": TacticsAdvisorTool(llm_client),
         "conflict_analyzer": CharacteristicConflictAnalyzerTool(llm_client),
         "architecture_generator": ArchitectureGeneratorTool(llm_client, memory_store),
+        "buy_vs_build_analyzer": BuyVsBuildAnalyzerTool(llm_client),
         "diagram_generator": DiagramGeneratorTool(llm_client),
         "trade_off_engine": TradeOffEngineTool(llm_client),
         "adl_generator": ADLGeneratorV2Tool(llm_client),

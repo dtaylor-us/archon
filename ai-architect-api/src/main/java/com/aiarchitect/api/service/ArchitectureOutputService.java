@@ -93,6 +93,24 @@ public class ArchitectureOutputService {
         List<Object> diagrams = (List<Object>)
                 structuredOutput.getOrDefault("diagrams", List.of());
 
+        boolean overrideApplied = false;
+        String overrideWarning = "";
+        try {
+            Object oa = design.getOrDefault("override_applied", false);
+            if (oa instanceof Boolean b) {
+                overrideApplied = b;
+            } else if (oa instanceof String s) {
+                overrideApplied = Boolean.parseBoolean(s);
+            }
+            Object ow = design.getOrDefault("override_warning", "");
+            if (ow != null) {
+                overrideWarning = ow.toString();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to extract override metadata for conversation={}",
+                    conversationId, e);
+        }
+
         ArchitectureOutput output = ArchitectureOutput.builder()
                 .conversationId(conversationId)
                 .style((String) design.getOrDefault("style", ""))
@@ -115,6 +133,8 @@ public class ArchitectureOutputService {
                 .weaknessSummary(weaknessSummary)
                 .fmeaRisks(toJson(fmeaRisks))
                 .diagramsJson(toJson(diagrams))
+                .overrideApplied(overrideApplied)
+                .overrideWarning(overrideWarning)
                 .build();
 
         repository.save(output);
@@ -155,6 +175,8 @@ public class ArchitectureOutputService {
                 .weaknessSummary(entity.getWeaknessSummary())
                 .fmeaRisks(fromJson(entity.getFmeaRisks()))
                 .diagrams(fromJson(entity.getDiagramsJson()))
+                .overrideApplied(entity.isOverrideApplied())
+                .overrideWarning(entity.getOverrideWarning())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

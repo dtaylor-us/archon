@@ -16,8 +16,8 @@ public class AgentClientConfig {
     /** Internal secret for authentication */
     private String internalSecret;
     
-    /** Request timeout in seconds (default: 120) */
-    private int timeoutSeconds = 120;
+    /** Request timeout in seconds (default: 600). */
+    private int timeoutSeconds = 600;
 
     /** Circuit breaker sliding window size (default: 10 calls) */
     private int cbSlidingWindowSize = 10;

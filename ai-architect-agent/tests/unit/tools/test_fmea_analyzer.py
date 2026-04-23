@@ -384,3 +384,46 @@ class TestFMEAPlusTool:
         call_kwargs = mock_llm.complete.call_args
         assert call_kwargs.kwargs.get("response_format") == "json" or \
                (len(call_kwargs.args) > 1 and call_kwargs.args[1] == "json")
+
+    async def test_builds_prompt_with_non_empty_weaknesses_when_present(
+        self, tool, rich_context, mock_llm, monkeypatch,
+    ):
+        """run() passes context.weaknesses into the prompt builder."""
+        captured = {}
+
+        def _fake_load_prompt(template_name: str, **kwargs):
+            captured["template_name"] = template_name
+            captured["weaknesses"] = kwargs.get("weaknesses")
+            return "prompt"
+
+        monkeypatch.setattr(
+            "app.tools.fmea_analyzer.load_prompt",
+            _fake_load_prompt,
+        )
+        mock_llm.complete.return_value = VALID_RESPONSE
+
+        await tool.run(rich_context)
+
+        assert captured["template_name"] == "fmea_analyzer"
+        assert captured["weaknesses"] == rich_context.weaknesses
+
+    async def test_weakness_context_can_be_empty_and_is_still_passed(
+        self, tool, rich_context, mock_llm, monkeypatch,
+    ):
+        """run() always passes weaknesses (empty list is allowed)."""
+        rich_context.weaknesses = []
+        captured = {}
+
+        def _fake_load_prompt(template_name: str, **kwargs):
+            captured["weaknesses"] = kwargs.get("weaknesses")
+            return "prompt"
+
+        monkeypatch.setattr(
+            "app.tools.fmea_analyzer.load_prompt",
+            _fake_load_prompt,
+        )
+        mock_llm.complete.return_value = VALID_RESPONSE
+
+        await tool.run(rich_context)
+
+        assert captured["weaknesses"] == []

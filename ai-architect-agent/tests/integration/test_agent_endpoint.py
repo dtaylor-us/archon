@@ -37,8 +37,10 @@ def mock_registry():
         "challenge_engine": _make_tool(),
         "scenario_modeler": _make_tool(),
         "characteristic_reasoner": _make_tool(),
+        "tactics_advisor": _make_tool(),
         "conflict_analyzer": _make_tool(),
         "architecture_generator": _make_tool(),
+        "buy_vs_build_analyzer": _make_tool(),
         "diagram_generator": _make_tool(),
         "trade_off_engine": _make_tool(),
         "adl_generator": _make_tool(),
@@ -139,8 +141,8 @@ class TestAgentStreamEndpoint:
             json.loads(line) for line in response.text.strip().split("\n") if line.strip()
         ]
         stage_completes = [e for e in lines if e.get("type") == "STAGE_COMPLETE"]
-        # Should have at least one STAGE_COMPLETE per pipeline stage (11 stages)
-        assert len(stage_completes) >= 11
+        # Should have at least one STAGE_COMPLETE per pipeline stage
+        assert len(stage_completes) >= 14
 
     async def test_stream_ends_with_complete_event(self, client: AsyncClient):
         """Response stream ends with COMPLETE event."""
