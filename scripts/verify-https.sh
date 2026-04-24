@@ -42,6 +42,21 @@ if [[ -f "${REPO_ROOT}/.deployment-config" ]]; then
   source "${REPO_ROOT}/.deployment-config"
 fi
 
+# ─── Derive standard names from PROJECT_NAME / ENVIRONMENT if not explicit ────
+PROJECT_NAME="${PROJECT_NAME:-}"
+ENVIRONMENT="${ENVIRONMENT:-}"
+
+AZURE_RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-rg-${PROJECT_NAME}-${ENVIRONMENT}}"
+AKS_CLUSTER_NAME="${AKS_CLUSTER_NAME:-aks-${PROJECT_NAME}-${ENVIRONMENT}}"
+
+# ─── Final guard ──────────────────────────────────────────────────────────────
+if [[ -z "${PROJECT_NAME}" ]] || [[ -z "${ENVIRONMENT}" ]]; then
+  if [[ -z "${AZURE_RESOURCE_GROUP}" ]] || [[ "${AZURE_RESOURCE_GROUP}" == "rg--" ]]; then
+    error "Cannot determine AZURE_RESOURCE_GROUP. Set PROJECT_NAME and ENVIRONMENT or export AZURE_RESOURCE_GROUP directly."
+    exit 1
+  fi
+fi
+
 # Refresh AKS credentials silently — kubeconfig may be stale.
 az aks get-credentials \
   --resource-group "${AZURE_RESOURCE_GROUP}" \
