@@ -42,6 +42,23 @@ else
   warn ".deployment-config not found — assuming environment variables are set."
 fi
 
+# ─── Prompt for LETSENCRYPT_EMAIL ─────────────────────────────────────────────
+# Let's Encrypt requires a valid email address at registration time.
+# The same address receives certificate expiry warnings (60- and 14-days notice)
+# so use a real, monitored inbox.
+if [[ -z "${LETSENCRYPT_EMAIL:-}" ]]; then
+  read -r -p "Enter email address for Let's Encrypt notifications: " LETSENCRYPT_EMAIL
+  export LETSENCRYPT_EMAIL
+fi
+
+if [[ -z "${LETSENCRYPT_EMAIL:-}" ]]; then
+  error "LETSENCRYPT_EMAIL is required for TLS certificate issuance."
+  error "Re-run with: export LETSENCRYPT_EMAIL=you@example.com && ./scripts/post-terraform.sh"
+  exit 1
+fi
+
+info "Let's Encrypt email: ${LETSENCRYPT_EMAIL}"
+
 # ─── Step 2: Configure kubectl ────────────────────────────────────────────────
 header "Step 2 — Configuring kubectl"
 
@@ -63,17 +80,42 @@ success "kubectl configured for AKS cluster."
 # ─── Step 3: Install nginx ingress controller ─────────────────────────────────
 header "Step 3 — Installing nginx ingress controller"
 
+# Read the static public IP and related values from Terraform output.
+# The static IP must exist before installing nginx so that Azure associates
+# the load balancer with the Terraform-managed IP rather than creating a
+# new dynamic one (which would change on every redeployment and break
+# Let's Encrypt certificate bindings).
+pushd "${REPO_ROOT}/terraform" > /dev/null
+  INGRESS_IP="$(terraform output -raw ingress_ip 2>/dev/null || true)"
+  INGRESS_IP_ID="$(terraform output -raw ingress_public_ip_id 2>/dev/null || true)"
+  RESOURCE_GROUP="$(terraform output -raw resource_group_name 2>/dev/null || true)"
+  INGRESS_FQDN="$(terraform output -raw ingress_fqdn 2>/dev/null || true)"
+popd > /dev/null
+
+if [[ -z "${INGRESS_IP}" ]]; then
+  error "Could not read ingress_ip from terraform output."
+  error "Run 'terraform apply' first and ensure the ingress public IP was created."
+  exit 1
+fi
+
+info "Using static ingress IP: ${INGRESS_IP}"
+info "Ingress FQDN:            ${INGRESS_FQDN}"
+
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>/dev/null || true
 helm repo update
 
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --namespace ingress-nginx \
   --create-namespace \
+  --set controller.service.loadBalancerIP="${INGRESS_IP}" \
+  --set "controller.service.annotations.service\.beta\.kubernetes\.io/azure-load-balancer-resource-group=${RESOURCE_GROUP}" \
   --set "controller.service.annotations.service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path=/healthz" \
-  --wait \
-  --timeout 5m
+  --set "controller.service.annotations.service\.beta\.kubernetes\.io/azure-pip-name=pip-${PROJECT_NAME}-${ENVIRONMENT}-ingress" \
+  --set controller.config.use-forwarded-headers="true" \
+  --set controller.config.proxy-buffer-size="128k" \
+  --wait --timeout 5m
 
-success "nginx ingress controller installed."
+success "nginx ingress controller installed with static IP ${INGRESS_IP}."
 
 # ─── Step 4: Install cert-manager ─────────────────────────────────────────────
 header "Step 4 — Installing cert-manager"
@@ -85,26 +127,45 @@ helm upgrade --install cert-manager jetstack/cert-manager \
   --namespace cert-manager \
   --create-namespace \
   --set installCRDs=true \
-  --wait \
-  --timeout 5m
+  --set global.leaderElection.namespace=cert-manager \
+  --wait --timeout 5m
+
+info "Waiting for cert-manager pods to be ready..."
+kubectl wait --namespace cert-manager \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/instance=cert-manager \
+  --timeout=120s
 
 success "cert-manager installed."
 
-# ─── Step 4b: Create cert-manager ClusterIssuer ───────────────────────────────
-header "Step 4b — Creating cert-manager ClusterIssuer"
+# ─── Step 4b: Create cert-manager ClusterIssuers ─────────────────────────────
+header "Step 4b — Creating Let's Encrypt ClusterIssuers"
 
-if kubectl get clusterissuer letsencrypt-prod &>/dev/null; then
-  success "ClusterIssuer 'letsencrypt-prod' already exists."
-else
-  # Require an email for Let's Encrypt registration.
-  CERT_EMAIL="${CERT_EMAIL:-}"
-  if [[ -z "$CERT_EMAIL" ]]; then
-    error "CERT_EMAIL environment variable is not set."
-    error "Set it to your email address and re-run: export CERT_EMAIL=you@example.com"
-    exit 1
-  fi
+# Staging issuer is used first to verify the ACME flow works without consuming
+# the Let's Encrypt production rate limit (5 duplicate certificates per week).
+# Once the staging certificate shows READY, run scripts/switch-to-prod-tls.sh
+# to upgrade to the production issuer whose CA is trusted by all browsers.
+kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: ${LETSENCRYPT_EMAIL}
+    privateKeySecretRef:
+      name: letsencrypt-staging-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+EOF
 
-  kubectl apply -f - <<EOF
+# Production issuer — activate once staging certificate is verified READY.
+# Never use the production issuer for debugging; exhausting rate limits means
+# waiting 7 days before a new certificate can be issued.
+kubectl apply -f - <<EOF
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -112,16 +173,16 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: ${CERT_EMAIL}
+    email: ${LETSENCRYPT_EMAIL}
     privateKeySecretRef:
-      name: letsencrypt-prod
+      name: letsencrypt-prod-key
     solvers:
       - http01:
           ingress:
             class: nginx
 EOF
-  success "ClusterIssuer 'letsencrypt-prod' created."
-fi
+
+success "ClusterIssuers created: letsencrypt-staging, letsencrypt-prod."
 
 # ─── Step 5: Verify Secrets Store CSI driver (managed by AKS add-on) ────────
 header "Step 5 — Verifying Secrets Store CSI driver (AKS add-on)"
@@ -198,12 +259,26 @@ if [[ -n "$EXTERNAL_IP" ]]; then
   echo "  If you have a domain, create an A record:"
   echo "    Host: aiarchitect  (or @)  →  IP: ${EXTERNAL_IP}"
   echo ""
-  echo "  If you do not have a domain, use nip.io right now:"
-  echo "    http://aiarchitect.${EXTERNAL_IP}.nip.io"
   echo ""
-  echo "  nip.io resolves *.1.2.3.4.nip.io to 1.2.3.4 — no DNS setup needed."
+  if [[ -n "${INGRESS_FQDN:-}" ]]; then
+    echo "  Azure-assigned FQDN (use this if you have no custom domain):"
+    echo "    https://${INGRESS_FQDN}"
+  fi
+  echo ""
+  echo "  If you have a custom domain, create a DNS A record:"
+  echo "    Host: aiarchitect  (or @)  →  IP: ${EXTERNAL_IP}"
 fi
 
+echo -e "${BOLD}TLS certificate status:${RESET}"
+echo ""
+echo "  The staging certificate will be issued in 1-2 minutes."
+echo "  Check status:"
+echo "    kubectl get certificate -n ai-architect"
+echo "    kubectl describe certificate ai-architect-tls -n ai-architect"
+echo ""
+echo "  Once staging certificate shows READY = True, switch to production:"
+echo "    ./scripts/switch-to-prod-tls.sh"
+echo ""
 echo -e "${BOLD}Next step:${RESET}"
 echo "  Add the GitHub Secrets listed by the bootstrap script, then push to main:"
 echo "    git add ."

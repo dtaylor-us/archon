@@ -657,6 +657,18 @@ ASSERT deployment {
     — storageClass is configurable (default: managed-premium)
 }
 
+ASSERT tls_required {
+  The ingress MUST terminate TLS using a certificate issued by
+  Let's Encrypt via cert-manager.
+  The ingress annotation ssl-redirect MUST be true so all HTTP
+  traffic is redirected to HTTPS automatically.
+  Self-signed certificates MUST NOT be used in any environment.
+  The TLS issuer MUST be letsencrypt-staging for initial setup
+  and letsencrypt-prod once staging is verified.
+  Certificate renewal is handled automatically by cert-manager.
+  No manual certificate rotation process exists or is required.
+}
+
 
 ---
 

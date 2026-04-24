@@ -163,10 +163,25 @@ qdrant:
 ingress:
   enabled: true
   className: nginx
-  host: archon.20.15.73.156.nip.io
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # HTTP to HTTPS redirect — nginx handles this automatically when TLS is
+    # configured on the ingress. Both annotations must be true together.
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
   tls:
-    enabled: false
-    secretName: archon-tls
+    enabled: true
+    # Start with staging issuer to verify the ACME flow without consuming the
+    # Let's Encrypt production rate limit (5 duplicate certs per week).
+    # Run scripts/switch-to-prod-tls.sh once staging shows READY = True.
+    issuer: letsencrypt-staging
+    secretName: ai-architect-tls
+  # Overridden at deploy time from the terraform output ingress_fqdn.
+  # Set to a custom domain if one is configured; otherwise leave empty and the
+  # Azure-assigned FQDN is used (set via --set ingress.host=... during helm deploy).
+  host: ""
 
 # ── Network Policy ──────────────────────────────────────────────
 networkPolicy:

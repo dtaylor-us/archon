@@ -138,6 +138,19 @@ if [[ -z "${OPENAI_API_KEY:-}" ]]; then
   export OPENAI_API_KEY
 fi
 
+# Let's Encrypt email — required for TLS certificate issuance.
+# This address receives certificate expiry warnings at 60 and 14 days before
+# the 90-day expiry. Use a real, monitored inbox.
+if [[ -z "${LETSENCRYPT_EMAIL:-}" ]]; then
+  read -r -p "Email for Let's Encrypt TLS certificates (required): " LETSENCRYPT_EMAIL
+  export LETSENCRYPT_EMAIL
+fi
+
+if [[ -z "${LETSENCRYPT_EMAIL:-}" ]]; then
+  error "LETSENCRYPT_EMAIL is required for TLS certificate issuance."
+  exit 1
+fi
+
 # Validate project name — must be lowercase alphanumeric, max 12 chars
 if ! echo "$PROJECT_NAME" | grep -qE '^[a-z0-9]{1,12}$'; then
   error "PROJECT_NAME must be lowercase alphanumeric only, maximum 12 characters. Got: '${PROJECT_NAME}'"
@@ -289,6 +302,7 @@ export DEPLOYER_OBJECT_ID="${DEPLOYER_OBJECT_ID}"
 export TF_STATE_RESOURCE_GROUP="${TF_STATE_RESOURCE_GROUP}"
 export TF_STATE_STORAGE_ACCOUNT="${TF_STATE_STORAGE_ACCOUNT}"
 export GITHUB_SP_OBJECT_ID="${GITHUB_SP_OBJECT_ID:-}"
+export LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL}"
 EOF
 
 success ".deployment-config written."

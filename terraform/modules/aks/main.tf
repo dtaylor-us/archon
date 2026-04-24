@@ -115,3 +115,38 @@ resource "azurerm_role_assignment" "monitoring" {
   role_definition_name = "Monitoring Metrics Publisher"
   principal_id         = azurerm_kubernetes_cluster.main.identity[0].principal_id
 }
+
+# Static public IP for the nginx ingress controller.
+# A static (not dynamic) IP is required so Let's Encrypt certificate bindings
+# survive cluster operations — dynamic IPs change on redeployment and
+# would invalidate any issued certificate.
+resource "azurerm_public_ip" "ingress" {
+  name                = "pip-${var.project}-${var.environment}-ingress"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+
+  # The domain_name_label creates a stable Azure-managed FQDN:
+  # <label>.<location>.cloudapp.azure.com
+  # cert-manager uses this FQDN for HTTP-01 ACME challenges when no
+  # custom domain is configured.
+  domain_name_label = "${var.project}-${var.environment}"
+
+  tags = {
+    project     = var.project
+    environment = var.environment
+    managed_by  = "terraform"
+  }
+}
+
+# The nginx ingress controller runs inside the AKS-managed node resource group,
+# not the main resource group. The cluster identity must have Network Contributor
+# rights on that group so Azure can associate the load balancer with the
+# Terraform-managed public IP. Without this role the load balancer provisioning
+# will fail with an authorisation error.
+resource "azurerm_role_assignment" "aks_network_contributor" {
+  scope                = "/subscriptions/${var.subscription_id}/resourceGroups/${azurerm_kubernetes_cluster.main.node_resource_group}"
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_kubernetes_cluster.main.identity[0].principal_id
+}

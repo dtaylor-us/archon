@@ -42,3 +42,8 @@ variable "acr_id" {
   type        = string
   description = "Full resource ID of the Azure Container Registry. Used to assign AcrPull role to the kubelet identity."
 }
+
+variable "subscription_id" {
+  description = "Azure subscription ID. Required to construct the AKS node resource group scope for the Network Contributor role assignment that allows the cluster to manage the ingress load balancer and public IP."
+  type        = string
+}

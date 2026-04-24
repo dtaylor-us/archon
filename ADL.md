@@ -52,6 +52,7 @@ Each ADL block is self-contained and can be independently converted into an exec
 | ADL-026  | Cross-service       | Tactic entity domain isolation | Custom fitness function via grep    | Hard        |
 | ADL-027  | API Gateway         | Tactic write path enforcement  | Custom fitness function via grep    | Hard        |
 | ADL-028  | Agent Orchestration | Tactic catalog enforcement     | Custom fitness function via Semgrep | Hard        |
+| ADL-033  | Infra               | HTTPS enforcement on ingress   | Custom fitness function via grep    | Hard        |
 
 ## ADL blocks
 
@@ -669,6 +670,36 @@ ASSERT(TacticsAdvisorTool DEPENDS ON TacticsCatalog EXCLUSIVELY)
 ASSERT(TacticsAdvisorTool has NO hardcoded tactic names in Python source)
 ```
 
+```text
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ADL-033: HTTPS ENFORCEMENT ON INGRESS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REQUIRES Custom fitness function via grep
+DESCRIPTION Assert that the ingress template enforces TLS and that the ssl-redirect
+             annotation is present so HTTP traffic is redirected to HTTPS. Checks both
+             the template file and the values file to confirm a real CA issuer is
+             configured and not a self-signed certificate.
+PROMPT Based on this pseudo-code, write a bash script for GitHub Actions that checks:
+       (1) helm/ai-architect/templates/ingress.yaml contains the string 'ssl-redirect'
+           as evidence the HTTP to HTTPS redirect annotation is configured.
+       (2) helm/ai-architect/values.yaml contains 'letsencrypt' as evidence a real CA
+           issuer is configured rather than a self-signed certificate.
+       (3) helm/ai-architect/templates/ingress.yaml contains a tls: block.
+       Exit with code 1 if any check fails.
+       Rule id: aiarchitect-https-enforcement.
+
+DEFINE SYSTEM AIArchitect AS helm/ai-architect
+DEFINE CONST TLS_ANNOTATION    AS "ssl-redirect"
+DEFINE CONST ISSUER_REFERENCE  AS "letsencrypt"
+DEFINE CONST TLS_BLOCK         AS "tls:"
+DEFINE COMPONENT IngressTemplate AS helm/ai-architect/templates/ingress.yaml
+DEFINE COMPONENT IngressValues   AS helm/ai-architect/values.yaml
+
+ASSERT(IngressTemplate CONTAINS TLS_ANNOTATION)
+ASSERT(IngressValues   CONTAINS ISSUER_REFERENCE)
+ASSERT(IngressTemplate CONTAINS TLS_BLOCK)
+```
+
 ## Enforcement levels
 
 | Block ID | Enforcement | Rationale |
@@ -701,3 +732,4 @@ ASSERT(TacticsAdvisorTool has NO hardcoded tactic names in Python source)
 | ADL-026  | Hard        | The ArchitectureTactic entity is owned exclusively by the API service; agent code must not reference it directly. A violation would split domain ownership and couple the Python agent to the Java persistence model. |
 | ADL-027  | Hard        | Tactics must only be written through TacticsService.saveTactics() called from ChatService.doOnComplete(). A second write path would create duplicate records and race conditions with the pipeline streaming response. |
 | ADL-028  | Hard        | Tactic names must live in the Jinja2 catalog template, not hardcoded in Python. Inline names bypass the Bass/Clements/Kazman catalog constraint and make the tool unauditable. |
+| ADL-033  | Hard        | Serving the application over HTTP exposes user sessions, JWT tokens, and architecture data in plaintext. The ssl-redirect annotation and a valid CA issuer (letsencrypt-staging or letsencrypt-prod) are both required. CI must fail if either is removed. Self-signed certificates are not acceptable; they produce the same browser warning as HTTP-only deployment. |

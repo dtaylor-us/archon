@@ -6,13 +6,20 @@ metadata:
   labels:
     {{- include "ai-architect.labels" . | nindent 4 }}
   annotations:
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
-    {{- /* SSE support for streaming pipeline responses */}}
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    {{- /* SSE streaming requires buffering off; raising this annotation
+         removes it only if you also switch to gRPC or non-streaming responses. */}}
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    {{- /* Redirect all HTTP traffic to HTTPS. When tls.enabled is false
+         these annotations become "false" and redirect is disabled. */}}
     nginx.ingress.kubernetes.io/ssl-redirect: {{ .Values.ingress.tls.enabled | quote }}
+    nginx.ingress.kubernetes.io/force-ssl-redirect: {{ .Values.ingress.tls.enabled | quote }}
     {{- if .Values.ingress.tls.enabled }}
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    {{- /* Instruct cert-manager to issue a certificate from the named ClusterIssuer.
+         The issuer value starts as letsencrypt-staging; switch to letsencrypt-prod
+         once the staging certificate is verified READY. */}}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.tls.issuer }}
     {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}

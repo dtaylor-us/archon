@@ -237,11 +237,32 @@ jobs:
             && echo "Secret archon-secrets exists." \
             || echo "Secret archon-secrets not yet present — will be synced by CSI driver after first pod mount."
 
+      - name: Get ingress FQDN
+        id: ingress
+        run: |
+          # Use a custom hostname if one is configured in GitHub Secrets.
+          # Otherwise, query the Azure-assigned FQDN from the static public IP
+          # resource that Terraform created. This FQDN is stable and works for
+          # Let's Encrypt HTTP-01 challenges without custom DNS configuration.
+          if [ -n "${{ secrets.INGRESS_HOSTNAME }}" ]; then
+            echo "host=${{ secrets.INGRESS_HOSTNAME }}" >> $GITHUB_OUTPUT
+          else
+            HOST=$(az network public-ip show \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name "pip-${{ secrets.PROJECT_NAME }}-${{ secrets.ENVIRONMENT }}-ingress" \
+              --query "dnsSettings.fqdn" \
+              --output tsv 2>/dev/null || echo "")
+            echo "host=${HOST}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy Helm chart
         run: |
           helm upgrade --install ai-architect helm/ai-architect/ \
             --namespace ai-architect \
             --create-namespace \
+            --wait \
+            --timeout 10m \
+            --atomic \
             --set api.image.repository=${{ secrets.ACR_LOGIN_SERVER }}/api \
             --set api.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
             --set agent.image.repository=${{ secrets.ACR_LOGIN_SERVER }}/agent \
@@ -250,7 +271,10 @@ jobs:
             --set ui.image.tag=${{ needs.build-and-push.outputs.image_tag }} \
             --set keyVault.vaultName=${{ secrets.KEY_VAULT_NAME }} \
             --set keyVault.tenantId=${{ secrets.KEY_VAULT_TENANT_ID }} \
-            --set keyVault.userAssignedIdentityClientId=${{ secrets.AKS_KUBELET_CLIENT_ID }}
+            --set keyVault.userAssignedIdentityClientId=${{ secrets.AKS_KUBELET_CLIENT_ID }} \
+            --set ingress.host=${{ steps.ingress.outputs.host }} \
+            --set ingress.tls.enabled=true \
+            --set "ingress.tls.issuer=${{ secrets.TLS_ISSUER || 'letsencrypt-staging' }}"
 
       - name: Verify rollout
         run: |
@@ -260,6 +284,33 @@ jobs:
             --namespace ai-architect --timeout=5m
           kubectl rollout status deployment/ai-architect-ui \
             --namespace ai-architect --timeout=5m
+
+      - name: Verify certificate issuance
+        # continue-on-error so a slow certificate does not fail the deployment.
+        # The deploy itself succeeded; the cert being pending is not a blocking
+        # error — it resolves within minutes on a healthy cluster.
+        continue-on-error: true
+        run: |
+          echo "Waiting for TLS certificate to be issued..."
+          echo "This can take 1-2 minutes on first deploy."
+          for i in $(seq 1 18); do
+            READY=$(kubectl get certificate ai-architect-tls \
+              --namespace ai-architect \
+              --output jsonpath='{.status.conditions[?(@.type=="Ready")].status}' \
+              2>/dev/null || echo "False")
+            if [ "$READY" = "True" ]; then
+              echo "Certificate is READY"
+              echo "Application available at: https://${{ steps.ingress.outputs.host }}"
+              exit 0
+            fi
+            echo "Attempt ${i}/18 — waiting 10s..."
+            sleep 10
+          done
+          echo "Certificate not ready after 3 minutes."
+          echo "Check status with:"
+          echo "  kubectl describe certificate ai-architect-tls -n ai-architect"
+          echo "Note: continue-on-error is set — deploy is not failed."
+          echo "Run scripts/switch-to-prod-tls.sh once cert is ready."
 
       - name: Print status
         if: always()

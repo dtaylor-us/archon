@@ -139,6 +139,16 @@ variable "llm_provider" {
   EOT
 }
 
+variable "ingress_hostname" {
+  description = <<-EOT
+    Custom domain for the ingress. If empty, the Azure-assigned FQDN
+    (<project>-<environment>.<location>.cloudapp.azure.com) is used automatically.
+    If set, create a DNS A record pointing to the ingress_ip output after terraform apply.
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "github_actions_sp_object_id" {
   type        = string
   default     = ""

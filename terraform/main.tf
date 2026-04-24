@@ -66,6 +66,11 @@ module "aks" {
   # AKS must know the ACR resource ID to create the AcrPull role assignment.
   acr_id = module.acr.acr_id
 
+  # Required so the module can construct the node resource group scope for the
+  # Network Contributor role assignment that links the ingress load balancer
+  # to the Terraform-managed static public IP.
+  subscription_id = var.subscription_id
+
   depends_on = [module.acr]
 }
 

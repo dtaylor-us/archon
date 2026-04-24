@@ -18,3 +18,18 @@ output "kube_config" {
   value       = azurerm_kubernetes_cluster.main.kube_config_raw
   sensitive   = true
 }
+
+output "ingress_public_ip_address" {
+  value       = azurerm_public_ip.ingress.ip_address
+  description = "Static public IP address for the nginx ingress controller. Point a DNS A record here if using a custom domain."
+}
+
+output "ingress_public_ip_id" {
+  value       = azurerm_public_ip.ingress.id
+  description = "Resource ID of the static public IP. Passed to the nginx ingress Helm installation so Azure associates the load balancer with this Terraform-managed IP rather than creating a new dynamic one."
+}
+
+output "ingress_fqdn" {
+  value       = "${var.project}-${var.environment}.${var.location}.cloudapp.azure.com"
+  description = "Azure-assigned stable FQDN for the ingress. Use this as the Let's Encrypt domain when no custom domain is configured."
+}

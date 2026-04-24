@@ -52,6 +52,26 @@ output "get_credentials_command" {
   ])
 }
 
+output "ingress_ip" {
+  value       = module.aks.ingress_public_ip_address
+  description = "Static ingress IP — point your DNS A record here if using a custom domain."
+}
+
+output "ingress_public_ip_id" {
+  value       = module.aks.ingress_public_ip_id
+  description = "Azure resource ID of the static public IP. Used during nginx ingress Helm installation."
+}
+
+output "ingress_fqdn" {
+  value       = module.aks.ingress_fqdn
+  description = "Azure-assigned FQDN for the ingress — use this if you do not have a custom domain."
+}
+
+output "https_url" {
+  value       = "https://${module.aks.ingress_fqdn}"
+  description = "HTTPS URL that will be available after cert-manager issues the certificate."
+}
+
 output "github_secrets_summary" {
   description = "Copy-paste this block into GitHub Secrets. Each pair shows the exact secret name and value."
   value       = <<-EOT

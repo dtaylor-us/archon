@@ -30,6 +30,10 @@ Estimated total setup time: **45–60 minutes**.
 - **OpenAI API key** OR **Azure OpenAI access**
   > Azure OpenAI requires an application and approval — allow 1–3 business days.
   > See [Azure OpenAI request form](https://aka.ms/oaiapply).
+- **Email address for Let’s Encrypt** — a real, monitored inbox is required.
+  > cert-manager registers it with Let’s Encrypt when issuing your TLS certificate.
+  > You will receive expiry warning emails at 60 and 14 days before the 90-day expiry.
+  > The certificate renews automatically; the emails are informational only.
 
 ---
 
@@ -259,6 +263,9 @@ them for GitHub Secrets in Step 6.
 | `db_fqdn` | Reference only — stored in Key Vault via connection string |
 | `get_credentials_command` | Configure kubectl: copy and run this command |
 | `github_secrets_summary` | Pre-formatted block of all remaining secret values |
+| `ingress_ip` | Static public IP — point a DNS A record here for a custom domain |
+| `ingress_fqdn` | Azure-assigned FQDN — use this if you have no custom domain |
+| `https_url` | Ready-to-use HTTPS URL after cert-manager issues the certificate |
 
 ```bash
 # Print all outputs at any time:
@@ -289,23 +296,108 @@ chmod +x scripts/post-terraform.sh
 
 ### Your application IP address
 
-When the script finishes it prints an external IP address assigned to the
-nginx Ingress Controller's Azure Load Balancer. This is your entry point.
+When the script finishes it prints the static IP address and Azure-assigned FQDN
+for the nginx Ingress Controller's Azure Load Balancer. This is your entry point.
 
-**If you have a domain:** create an A record pointing to this IP:
+**If you have a domain:** create an A record pointing to the `ingress_ip` output:
 
 ```text
 Host: aiarchitect  (or @)  →  IP: <printed IP>
 ```
 
-**If you do not have a domain:** use `nip.io` for instant access — no DNS setup required:
+**If you do not have a domain:** use the Azure-assigned FQDN that Terraform creates
+automatically (printed by the script as `ingress_fqdn`):
 
 ```text
-http://aiarchitect.<YOUR-IP>.nip.io
-Example: http://aiarchitect.20.90.100.50.nip.io
+https://<project>-<environment>.<region>.cloudapp.azure.com
+Example: https://aiarchitect-dev.uksouth.cloudapp.azure.com
 ```
 
-`nip.io` is a free public DNS service that resolves `*.1.2.3.4.nip.io` to `1.2.3.4`.
+---
+
+## Step 5b — HTTPS and TLS certificates
+
+### Why HTTPS is required
+
+Without HTTPS, browsers display a “Not Secure” warning and require users to click
+through an Advanced option before they can access the application. All traffic
+— including JWT tokens and architecture data — is transmitted in plaintext.
+
+This deployment uses [cert-manager](https://cert-manager.io/) with Let’s Encrypt
+to issue a fully browser-trusted certificate automatically. No manual certificate
+management is required; cert-manager renews certificates 30 days before the
+90-day expiry.
+
+### Two-phase approach: staging then production
+
+Let’s Encrypt imposes a **rate limit of 5 duplicate certificates per domain per week**
+on its production issuer. Exhausting this limit during debugging means waiting 7 days
+before a new certificate can be issued.
+
+The deployment uses a **staging issuer first**:
+
+| Phase | Issuer | CA trusted by browsers? | Rate limit |
+|-------|--------|------------------------|------------|
+| 1 — Verify setup | `letsencrypt-staging` | No (staging CA) | Very high |
+| 2 — Go live | `letsencrypt-prod` | Yes | 5/week |
+
+The staging certificate allows you to verify the ACME HTTP-01 challenge works
+correctly without consuming production quota. Once the staging certificate shows
+`READY = True`, run `scripts/switch-to-prod-tls.sh` to upgrade to the production issuer.
+
+### Checking certificate status
+
+```bash
+# Check certificate status
+kubectl get certificate -n ai-architect
+
+# Detailed status with events
+kubectl describe certificate ai-architect-tls -n ai-architect
+
+# Check the ACME challenge
+kubectl get challenges -n ai-architect
+
+# cert-manager logs for debugging
+kubectl logs -n cert-manager \
+  -l app.kubernetes.io/name=cert-manager \
+  --tail=50
+```
+
+### Switching from staging to production
+
+Once the staging certificate shows `READY = True`:
+
+```bash
+./scripts/switch-to-prod-tls.sh
+```
+
+The script requires explicit confirmation before proceeding, upgrades the Helm
+release to use `letsencrypt-prod`, deletes the staging certificate to trigger
+re-issuance, and polls until the production certificate is `READY`.
+
+### Troubleshooting failed certificate issuance
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Challenge fails with `connection refused` | Port 80 is not open or nginx is not running | Verify nginx ingress is running and the static IP is assigned: `kubectl get svc -n ingress-nginx` |
+| `Rate limit exceeded` | Production issuer used too many times during debugging | Use staging issuer first; switch to production only once staging certificate is verified READY |
+| Certificate stays in `Pending` | DNS not propagated or IP not reachable | Verify the ingress host resolves to the correct IP: `nslookup <host>` |
+| `Wrong ingress class` | cert-manager cannot find the right ingress | Verify the ingress class annotation matches `nginx`: `kubectl describe ingress -n ai-architect` |
+
+### Custom domain vs Azure-assigned FQDN
+
+**No custom domain (recommended for dev):** Use the Azure-assigned FQDN printed by
+the post-terraform script. No DNS setup required — the name resolves immediately.
+
+**Custom domain:** Set the `INGRESS_HOSTNAME` GitHub Secret to your domain, then
+create a DNS `A` record pointing to `ingress_ip` after `terraform apply`:
+
+```text
+Host: aiarchitect  (or @)  →  IP: <terraform output ingress_ip>
+```
+
+DNS propagation takes 1–60 minutes depending on your DNS provider. cert-manager
+cannot issue a certificate until the host resolves publicly.
 
 ---
 
@@ -342,6 +434,11 @@ Create every secret in this table:
 | `TF_VAR_SUBSCRIPTION_ID` | UUID | `az account show --query id -o tsv` |
 | `TF_VAR_DEPLOYER_OBJECT_ID` | UUID | `az ad signed-in-user show --query id -o tsv` |
 | `TF_VAR_OPENAI_API_KEY` | `sk-...` | Your [OpenAI dashboard](https://platform.openai.com/api-keys) |
+| `LETSENCRYPT_EMAIL` | `you@example.com` | Email for Let’s Encrypt. Receives expiry warnings. Required for cert issuance. |
+| `TLS_ISSUER` | `letsencrypt-staging` | `letsencrypt-staging` or `letsencrypt-prod`. Default: staging. Change to prod after running `switch-to-prod-tls.sh`. |
+| `INGRESS_HOSTNAME` | `archon.yourdomain.com` | Optional custom domain. Leave empty to use the Azure-assigned FQDN automatically. |
+| `PROJECT_NAME` | `aiarchitect` | Project name matching the `project` Terraform variable. Used to construct the public IP resource name. |
+| `ENVIRONMENT` | `dev` | Environment name matching the `environment` Terraform variable. Used to construct the public IP resource name. |
 
 > **Tip:** the bootstrap script prints all of these values at the end in a formatted block.
 > Keep that terminal output open while adding secrets to avoid switching between windows.
@@ -384,7 +481,9 @@ ai-architect-ui-5b8e7f-xxxx          1/1     Running   0
 
 ### Open your application
 
-Navigate to your IP or nip.io URL. You should see the AI Architect Assistant interface.
+Navigate to your HTTPS URL (use `terraform output https_url` to see it). You should
+see the AI Architect Assistant interface. HTTP requests are automatically redirected
+to HTTPS by the nginx `ssl-redirect` annotation.
 
 ---
 
@@ -486,10 +585,12 @@ terraform destroy -var-file=environments/dev.tfvars
 Internet
     |
     v
-Azure Load Balancer (public IP from post-terraform script)
+Azure Load Balancer (static public IP — pip-<project>-<env>-ingress)
     |
     v
 nginx Ingress Controller (AKS — namespace: ingress-nginx)
+  TLS terminated here — cert-manager / Let's Encrypt certificate
+  HTTP → HTTPS redirect is enforced by ssl-redirect annotation
     |
     +-- /     --> UI pods      (nginx, React SPA)
     |
